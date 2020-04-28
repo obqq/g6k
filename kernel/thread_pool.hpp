@@ -105,6 +105,9 @@ namespace thread_pool {
 		// stop the thread pool
 		void stop();
 
+		// process single task
+		bool work();
+
 		// process tasks & then wait until all threads are idle
 		void wait_work();
 
@@ -166,20 +169,24 @@ namespace thread_pool {
 		resize(0);
 	}
 
-	inline void thread_pool::wait_work()
+	inline bool thread_pool::work()
 	{
 		std::function<void()> task;
-		std::unique_lock<std::mutex> lock(_mutex);
-		while (!_tasks.empty())
 		{
+			std::lock_guard<std::mutex> lock(_mutex);
+			if (_tasks.empty())
+				return false;
 			task = std::move(this->_tasks.front());
 			this->_tasks.pop();
-
-			lock.unlock();
-			task();
-			lock.lock();
 		}
-		lock.unlock();
+		task();
+		return true;
+	}
+
+	inline void thread_pool::wait_work()
+	{
+		while (work())
+			;
 		while (_threads_busy != 0)
 			std::this_thread::yield();
 	}
@@ -217,8 +224,8 @@ namespace thread_pool {
 
 	inline void thread_pool::run(const std::function<void()>& f, int threads)
 	{
-		if (threads == -1 || threads > int(_threads.size()+1))
-			threads = _threads.size()+1;
+		if (threads < 1 || threads > int(_threads.size())+1)
+			threads = int(_threads.size())+1;
 		for (int i = 0; i < threads; ++i)
 			this->push(f);
 		this->wait_work();
@@ -226,8 +233,8 @@ namespace thread_pool {
 
 	inline void thread_pool::run(const std::function<void(int)>& f, int threads)
 	{
-		if (threads == -1 || threads > int(_threads.size()+1))
-			threads = _threads.size()+1;
+		if (threads < 1 || threads > int(_threads.size())+1)
+			threads = int(_threads.size())+1;
 		for (int i = 0; i < threads; ++i)
 			this->push( [f,i](){f(i);} );
 		this->wait_work();
@@ -235,8 +242,8 @@ namespace thread_pool {
 
 	inline void thread_pool::run(const std::function<void(int,int)>& f, int threads)
 	{
-		if (threads == -1 || threads > int(_threads.size()+1))
-			threads = _threads.size()+1;
+		if (threads < 1 || threads > int(_threads.size())+1)
+			threads = int(_threads.size())+1;
 		for (int i = 0; i < threads; ++i)
 			this->push( [f,i,threads](){f(i,threads);} );
 		this->wait_work();
@@ -247,13 +254,15 @@ namespace thread_pool {
 		if (nrthreads < _threads.size())
 		{
 			// decreasing number of active threads
+			std::unique_lock<std::mutex> lock(_mutex);
 			for (std::size_t i = nrthreads; i < _threads.size(); ++i)
 				*(_threads_stop[i]) = true;
 			_condition.notify_all();
+			lock.unlock();
 			for (std::size_t i = nrthreads; i < _threads.size(); ++i)
 				_threads[i]->join();
 
-			std::unique_lock<std::mutex> lock(_mutex);
+			lock.lock();
 			_threads_stop.resize(nrthreads);
 			_threads.resize(nrthreads);
 		} 
