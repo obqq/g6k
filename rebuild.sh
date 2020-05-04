@@ -84,12 +84,12 @@ export EXTRAFLAGS
 
 if [ ${enable_jobs} -eq 0 ]; then
 	make -C kernel clean || exit 1
-	make -C kernel
+	make -C kernel || exit 1
 fi
 
 if [ ${enable_jobs} -eq 1 ]; then
 	make -C kernel clean || exit 1
-	make -j -C kernel
+	make -j -C kernel || exit 1
 fi
 
 

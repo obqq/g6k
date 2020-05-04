@@ -108,7 +108,7 @@ namespace parallel_algorithms {
 
 
 	template<typename RandIt, typename Pred, typename Threadpool>
-	RandIt partition(RandIt first, RandIt last, Pred pred, Threadpool& threadpool, const std::size_t chunksize = 4096)
+	RandIt partition(RandIt first, RandIt last, Pred pred, Threadpool& threadpool, const std::size_t chunksize = 1024)
 	{
 		const std::size_t dist = last-first;
 
@@ -264,7 +264,7 @@ namespace parallel_algorithms {
 	}
 	
 	template<typename RandIt, typename Compare, typename Threadpool>
-	void nth_element(RandIt first, RandIt nth, RandIt last, Compare cf, Threadpool& threadpool, std::size_t chunksize = 4096)
+	void nth_element(RandIt first, RandIt nth, RandIt last, Compare cf, Threadpool& threadpool, std::size_t chunksize = 1024)
 	{
 		typedef typename std::iterator_traits<RandIt>::difference_type difference_type;
 		typedef typename std::iterator_traits<RandIt>::value_type value_type;
@@ -301,7 +301,7 @@ namespace parallel_algorithms {
 	}
 	
 	template<typename RandIt, typename Threadpool>
-	void nth_element(RandIt first, RandIt nth, RandIt last, Threadpool& threadpool, std::size_t chunksize = 4096)
+	void nth_element(RandIt first, RandIt nth, RandIt last, Threadpool& threadpool, std::size_t chunksize = 1024)
 	{
 		typedef typename std::iterator_traits<RandIt>::value_type value_type;
 		nth_element(first, nth, last, std::less<value_type>(), threadpool, chunksize);

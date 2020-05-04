@@ -1,6 +1,9 @@
 #include <thread>
 #include <mutex>
 #include "siever.h"
+#include "parallel_algorithms.hpp"
+
+namespace pa = parallel_algorithms;
 
 // reserves size for db and cdb. If called with a larger size than the current capacities, does nothing
 void Siever::reserve(size_t const reserved_db_size)
@@ -497,29 +500,59 @@ void Siever::shrink_db(unsigned long N)
 
     parallel_sort_cdb();
 
-    std::vector<IT> db_to_cdb(db.size());
-    for (size_t i = 0; i < cdb.size(); ++i)
-        db_to_cdb[cdb[i].i] = i;
-    // reorder db in place according to cdb
-    // backwards! only down to position N. Note N > 0.
-    for (size_t i = db.size()-1; i >= N; --i)
-    {
-        if (cdb[i].i == i)
-            continue;
-        // db[j] should be at db[i]
-        size_t j = cdb[i].i;
-        // swap db[i] and db[j]
-        std::swap(db[i], db[j]);
-        std::swap(db_to_cdb[i], db_to_cdb[j]);
-        // update both cdb[].i
-        cdb[db_to_cdb[i]].i = i;
-        cdb[db_to_cdb[j]].i = j;
-    }
-    for (size_t i = N; i < cdb.size(); ++i)
-        uid_hash_table.erase_uid(db[cdb[i].i].uid);
+    std::vector<IT> to_keep, to_remove;
+    to_keep.resize(db.size() - N);
+    to_remove.resize(db.size() - N);
+    std::atomic_size_t idx_keep(0), idx_remove(0);
+
+    threadpool.run([&to_keep,&to_remove,&idx_keep,&idx_remove,N,this](int i, int n)
+        {
+            const std::size_t chunksize = 4096;
+            std::vector<IT> tmpkeep, tmpremove;
+            for (auto j : pa::subinterval(cdb.size(), i, n))
+            {
+                if (j < N && cdb[j].i >= N)
+                {
+                    tmpkeep.push_back(j);
+                    if (tmpkeep.size() == chunksize)
+                    {
+                        std::size_t w = idx_keep.fetch_add(tmpkeep.size());
+                        std::copy(tmpkeep.begin(), tmpkeep.end(), to_keep.begin()+w);
+                        tmpkeep.clear();
+                    }
+                }
+                if (j >= N && cdb[j].i < N)
+                {
+                    tmpremove.push_back(j);
+                    if (tmpremove.size() == chunksize)
+                    {
+                        std::size_t w = idx_remove.fetch_add(tmpremove.size());
+                        std::copy(tmpremove.begin(), tmpremove.end(), to_remove.begin()+w);
+                        tmpremove.clear();
+                    }
+                }
+            }
+            std::size_t w = idx_keep.fetch_add(tmpkeep.size());
+            std::copy(tmpkeep.begin(), tmpkeep.end(), to_keep.begin()+w);
+            tmpkeep.clear();
+            w = idx_remove.fetch_add(tmpremove.size());
+            std::copy(tmpremove.begin(), tmpremove.end(), to_remove.begin()+w);
+            tmpremove.clear();
+        });
+
+    threadpool.run([&to_keep,&to_remove,&idx_keep,this](int i, int n)
+        {
+            for (auto j : pa::subinterval(idx_keep, i , n))
+            {
+                std::size_t k = to_keep[j], r = to_remove[j];
+                uid_hash_table.erase_uid(db[cdb[r].i].uid);
+                db[cdb[r].i] = db[cdb[k].i];
+                cdb[k].i = cdb[r].i;
+            }
+        });
+
     cdb.resize(N);
     db.resize(N);
-    status_data.plain_data.sorted_until = N;
     invalidate_histo();
 }
 
@@ -589,7 +622,15 @@ void Siever::parallel_sort_cdb()
             size_t N0 = (size_left * c) / th_n;
             size_t N1 = (size_left * (c+1)) / th_n;
             assert( (c < th_n) || (N1 == size_left) );
-            if (c+1 < th_n) std::nth_element(start_unsorted+N0, start_unsorted+N1, cdb.end(), &compare_CE);
+            if (c+1 < th_n) pa::nth_element(start_unsorted+N0, start_unsorted+N1, cdb.end(), &compare_CE, threadpool);
+//            threadpool.push([N0,N1,start_unsorted](){ std::sort(start_unsorted+N0, start_unsorted+N1, &compare_CE) ;});
+        }
+        for (size_t c = 0; c < th_n; ++c)
+        {
+            size_t N0 = (size_left * c) / th_n;
+            size_t N1 = (size_left * (c+1)) / th_n;
+            assert( (c < th_n) || (N1 == size_left) );
+//            if (c+1 < th_n) std::nth_element(start_unsorted+N0, start_unsorted+N1, cdb.end(), &compare_CE);
             threadpool.push([N0,N1,start_unsorted](){ std::sort(start_unsorted+N0, start_unsorted+N1, &compare_CE) ;});
         }
         threadpool.wait_work();
