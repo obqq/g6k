@@ -13,6 +13,8 @@ from g6k.algorithms.bkz import default_dim4free_fun
 from g6k.utils.util import load_lwe_challenge
 from six.moves import range
 
+from g6k.utils.ntru_gsa import find_beta
+
 
 def delta_0f(k):
     """
@@ -70,6 +72,16 @@ def log_gh_svp(d, delta_bkz, svp_dim, n, q):
     vol_part = ((1./d)*(d-n-1)*log(q))+((svp_dim-d)*log(delta_bkz))
     return ball_part + vol_part
     
+def multinom(n, c):
+    
+	assert sum(c) == n, 'bad input to multinom!'
+	res = 1
+	n_ = n
+	for i in range(len(c)):
+		res*=binomial(n_, c[i])
+		n_ = n_ - c[i]
+	return res
+    
 def plain_hybrid_compleixty(paramset, verbose = false):
 
     q = paramset['q']
@@ -83,15 +95,21 @@ def plain_hybrid_compleixty(paramset, verbose = false):
     best_beta = n
     
     for g in range(2, n/2):
-        beta, nsamples, rt = find_beta(n-g, q, n) #g determines beta
+        beta, nsamples, prep_rt = find_beta(n-g, q, n) #g determines beta
+        w_scaled = (w*g / n) # assume the weight is uniformly distributed over s
+        S = multinom(g, [ceil(w_scaled/3), ceil(w_scaled/3), g - 2*ceil(w_scaled/3)]) # number of CVP batches
         
-        
-        
+        rt_log = max(prep_rt, log(S*beta**3, 2))
+        if rt_log < best_rt:
+            best_g = g
+            best_rt = rt_log
+            best_beta = beta
+            if verbose:
+                print('rt:', best_rt, 'beta:', beta,'g:', g, 'prep:', best_prep, 'query:', best_query, 'alpha:', alpha)
+                    
+    return best_beta, best_g, best_rt
     
-
     
-
-
 def gsa_params(n, alpha, q=None, samples=None, d=None, decouple=False):
     """
     Finds winning parameters (a BKZ reduction dimension and a final SVP call
