@@ -37,36 +37,35 @@ def print_ntru(q, h, variable_x, filename):
 		#f.write( str(hvector)+'\n')
 	#f.write(']')
 	f.close()
-	
+
 	return HMat
-	
+
 def gen_ntru_challenge(n):
-	
+
 	K = CyclotomicField(n)
-	
+
 	P = Primes()
 	q = next_prime(11*n)
-	
-	
+
+
 	F = GF(q)
 	Fx = PolynomialRing(F, 'x')
 	Fx_qou = Fx.quotient(K.polynomial(), 'x')
 	variable_x = Fx_qou.gen()
-	
-	sparcity = ceil(n/3.)
-	
-	f = Fx_qou(gen_small(1, sparcity+1, n))
-	g = Fx_qou(gen_small(1, sparcity, n))
+
+	sparsity = ceil(n/3.)
+
+	f = Fx_qou(gen_small(1, sparsity+1, n))
+	g = Fx_qou(gen_small(1, sparsity, n))
 	h = f/g
-		
-	
-	filename = 'ntru_n_'+str(n)+'.txt'	
+
+
+	filename = 'ntru_n_'+str(n)+'.txt'
 	print_ntru(q, h, variable_x, filename)
-	
+
 	return h, q
-	
-	
-	
+
+
+
 if __name__ == '__main__':
-    gen_ntru_challenge(64)
-	
+    gen_ntru_challenge(128)
