@@ -164,7 +164,7 @@ def find_beta(n, q, nrows, svp_alg = sievig0292):
 				beta_opt = beta
 				nsamples_opt = nsamples
 				rt_min = svp_alg(beta_opt)
-				print('find_beta', beta_opt, nsamples_opt, rt_min)
+				#print('find_beta', beta_opt, nsamples_opt, rt_min)
 				break
 
 

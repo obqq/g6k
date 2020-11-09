@@ -110,8 +110,25 @@ def sim_params(n, alpha):
 	return min_param
 
 
-#def ntru_plain_hybrid_basis(A, g, q, m = None):
-#	TODO
+def ntru_plain_hybrid_basis(A, g, q):
+	"""
+		Construct ntru lattice basis
+	"""
+	n = A.ncols
+	ell = n - g
+	B = IntegerMatrix(n+ell, n+ell)
+
+	for i in range(n):
+		B[i,i] = q
+		for j in range(ell):
+			B[i, n+j] = A[i,j]
+	for i in range(ell):
+		B[n+i, n+i] = 1
+
+	#B = LLL.reduction(B)
+	return B
+
+
 
 
 

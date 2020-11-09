@@ -107,14 +107,14 @@ def ntru_kernel(arg0, params=None, seed=None):
     blocksizes = params.pop("bkz/blocksizes")
     tours = params.pop("bkz/tours")
 
+    print("params:", extra_dim4free, jump, dim4free_fun, pump_params,
+        fpylll_crossover, blocksizes, tours)
+
     # flow of the lwe solver
     svp_bkz_time_factor = params.pop("lwe/svp_bkz_time_factor")
     goal_margin = params.pop("lwe/goal_margin")
 
     # generation of lwe instance and Kannan's embedding
-    alpha = params.pop("lwe/alpha")
-    m = params.pop("lwe/m")
-    decouple = svp_bkz_time_factor > 0
 
     # misc
     dont_trace = params.pop("dummy_tracer")
@@ -123,16 +123,20 @@ def ntru_kernel(arg0, params=None, seed=None):
     filename = 'ntru_n_'+str(n)+'.txt'
     H, q = read_ntru_from_file(filename)
 
-    print("-------------------------")
     print("Hybrid attack on NTRU n=%d" %n)
 
 
     # compute the attack parameters
-    paramset_NTRU1 = {'n': n, 'q': q, 'w': 2*(n/3)}
+    paramset_NTRU1 = {'n': n, 'q': q, 'w': 2*(n/3.)}
     print(paramset_NTRU1)
-    beta, g, rt = plain_hybrid_compleixty(paramset_NTRU1, verbose = True)
+    beta, g, rt = plain_hybrid_compleixty(paramset_NTRU1)
 
-    B = ntru_plain_hybrid_basis(A, g, q, m=m)
+    print('beta, g, rt:', beta, g, rt)
+    B = ntru_plain_hybrid_basis(H, g, q)
+    print(params)
+
+    blocksizes = list(range(10, 50)) + [beta-20, beta-17] + list(range(beta - 14, beta + 25, 2))
+    print("blocksizes:", blocksizes)
 
     g6k = Siever(B, params)
     print("GSO precision: ", g6k.M.float_type)
@@ -147,27 +151,29 @@ def ntru_kernel(arg0, params=None, seed=None):
     slope = basis_quality(g6k.M)["/"]
     print("Intial Slope = %.5f\n" % slope)
 
-    T0 = time.time()
-    T0_BKZ = time.time()
-    for blocksize in blocksizes:
-        for tt in range(tours):
-            # BKZ tours
+    print(d, 2*n - g)
 
-            if blocksize < fpylll_crossover:
-                if verbose:
-                    print("Starting a fpylll BKZ-%d tour. " % (blocksize), end=' ')
-                    sys.stdout.flush()
-                bkz = BKZReduction(g6k.M)
-                par = fplll_bkz.Param(blocksize,
-                                      strategies=fplll_bkz.DEFAULT_STRATEGY,
-                                      max_loops=1)
-                bkz(par)
+    target_norm = (2./3)*d  + 1
+    print("target_norm:", target_norm)
 
-            else:
-                if verbose:
-                    print("Starting a pnjBKZ-%d tour. " % (blocksize))
+    #
+    #   Preprocessing
+    #
 
-                pump_n_jump_bkz_tour(g6k, tracer, blocksize, jump=jump,
+    if blocksize < fpylll_crossover:
+        if verbose:
+            print("Starting a fpylll BKZ-%d tour. " % (blocksize), end=' ')
+            sys.stdout.flush()
+            bkz = BKZReduction(g6k.M)
+            par = fplll_bkz.Param(blocksize,
+                                  strategies=fplll_bkz.DEFAULT_STRATEGY,
+                                  max_loops=1)
+            bkz(par)
+
+    else:
+        if verbose:
+            print("Starting a pnjBKZ-%d tour. " % (blocksize))
+            pump_n_jump_bkz_tour(g6k, tracer, blocksize, jump=jump,
                                      verbose=verbose,
                                      extra_dim4free=extra_dim4free,
                                      dim4free_fun=dim4free_fun,
@@ -176,70 +182,21 @@ def ntru_kernel(arg0, params=None, seed=None):
 
             T_BKZ = time.time() - T0_BKZ
 
-            if verbose:
-                slope = basis_quality(g6k.M)["/"]
-                fmt = "slope: %.5f, walltime: %.3f sec"
-                print(fmt % (slope, time.time() - T0))
+    if verbose:
+        slope = basis_quality(g6k.M)["/"]
+        fmt = "slope: %.5f, walltime: %.3f sec"
+        print(fmt % (slope, time.time() - T0))
 
-            g6k.lll(0, g6k.full_n)
+        g6k.lll(0, g6k.full_n)
 
-            if g6k.M.get_r(0, 0) <= target_norm:
-                break
+    return 1
 
-            # overdoing n_max would allocate too much memory, so we are careful
-            svp_Tmax = svp_bkz_time_factor * T_BKZ
-            n_max = int(58 + 2.85 * log(svp_Tmax * params.threads)/log(2.))
-
-            rr = [g6k.M.get_r(i, i) for i in range(d)]
-            for n_expected in range(2, d-2):
-                x = (target_norm/goal_margin) * n_expected/(1.*d)
-                if 4./3 * gaussian_heuristic(rr[d-n_expected:]) > x:
-                    break
-
-            print("Without otf, would expect solution at pump-%d. n_max=%d in the given time." % (n_expected, n_max)) # noqa
-            if n_expected >= n_max - 1:
-                continue
-
-            n_max += 1
-
-            # Larger SVP
-
-            llb = d - blocksize
-            while gaussian_heuristic([g6k.M.get_r(i, i) for i in range(llb, d)]) < target_norm * (d - llb)/(1.*d): # noqa
-                llb -= 1
-
-            f = d-llb-n_max
-            if verbose:
-                print("Starting svp pump_{%d, %d, %d}, n_max = %d, Tmax= %.2f sec" % (llb, d-llb, f, n_max, svp_Tmax)) # noqa
-            pump(g6k, tracer, llb, d-llb, f, verbose=verbose,
-                 goal_r0=target_norm * (d - llb)/(1.*d))
-
-            if verbose:
-                slope = basis_quality(g6k.M)["/"]
-                fmt = "\n slope: %.5f, walltime: %.3f sec"
-                print(fmt % (slope, time.time() - T0))
-                print()
-
-            g6k.lll(0, g6k.full_n)
-            T0_BKZ = time.time()
-            if g6k.M.get_r(0, 0) <= target_norm:
-                break
-
-        if g6k.M.get_r(0, 0) <= target_norm:
-            print("Finished! TT=%.2f sec" % (time.time() - T0))
-            print(g6k.M.B[0])
-            alpha_ = int(alpha*1000)
-            filename = 'lwechallenge/%03d-%03d-solution.txt' % (n, alpha_)
-            fn = open(filename, "w")
-            fn.write(str(g6k.M.B[0]))
-            fn.close()
-            return
 	"""
     raise ValueError("No solution found.")
-
+    """
 def ntru():
     """
-    Attempt to solve an ntru instance.
+    Attempt to solve an lwe challenge.
 
     """
     description = ntru.__doc__
