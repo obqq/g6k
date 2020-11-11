@@ -152,9 +152,9 @@ def find_beta(n, q, nrows, svp_alg = sievig0292):
 	rt_min = 10000 #infinity TODO: try float("inf")
 	nsamples_opt = nrows
 	beta_opt = 10000 #infinity
-	for nsamples in range(60, nrows, 10):
+	for nsamples in range(nrows/2, nrows, 5):
 		dim = n+nsamples
-		for beta in range(25, dim,5):
+		for beta in range(15, dim,5):
 			if svp_alg(beta)>=rt_min:
 				break
 			#print('find_beta:', n, q, beta, nsamples)

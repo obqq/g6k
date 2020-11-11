@@ -76,6 +76,7 @@ def plain_hybrid_compleixty(paramset, verbose = False):
 		#print('g:', g, beta, w_scaled, S)
 		rt_CVP = S*BabaiRT(beta)
 		rt_log = max(prep_rt, log(rt_CVP, 2)) # not precise
+		print(prep_rt, log(rt_CVP, 2))
 		rt = 2**(prep_rt) + rt_CVP
 		if rt < best_rt:
 			best_g = g
@@ -116,16 +117,18 @@ def ntru_plain_hybrid_basis(A, g, q):
 	"""
 	n = A.ncols
 	ell = n - g
-	B = IntegerMatrix(n+ell, n+ell)
+	B = IntegerMatrix(n+ell, n)
 
-	for i in range(n):
-		B[i,i] = q
-		for j in range(ell):
-			B[i, n+j] = A[i,j]
 	for i in range(ell):
-		B[n+i, n+i] = 1
+		for j in range(n):
+			B[i,j] = A[j, i]
+	for i in range(n):
+		B[i+ell, i] = q
 
-	#B = LLL.reduction(B)
+	print(B)
+
+	B = LLL.reduction(B)
+
 	return B
 
 

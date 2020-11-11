@@ -203,10 +203,10 @@ def ntru_kernel(arg0, params=None, seed=None):
     #
     # BDD Queries
     #
-    print("g:", g)
-    mygenerator = kbits(10, 2)
-    for i in mygenerator:
-        print(i)
+    #print("g:", g)
+    #mygenerator = kbits(10, 2)
+    #for i in mygenerator:
+    #    print(i)
 
     return 1
 

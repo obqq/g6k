@@ -45,7 +45,7 @@ def gen_ntru_challenge(n):
 	K = CyclotomicField(n)
 
 	P = Primes()
-	q = next_prime(11*n)
+	q = next_prime(45*n)
 
 
 	F = GF(q)
@@ -68,4 +68,4 @@ def gen_ntru_challenge(n):
 
 
 if __name__ == '__main__':
-    gen_ntru_challenge(128)
+    gen_ntru_challenge(32)
