@@ -75,7 +75,7 @@ def plain_hybrid_compleixty(paramset, verbose = False):
 		S = multinom(g, [ceil(w_scaled/3.), ceil(w_scaled/3.), g - 2.*ceil(w_scaled/3.)]) # number of CVP batches
 		#print('g:', g, beta, w_scaled, S)
 		rt_CVP = S*BabaiRT(beta)
-		rt_log = max(prep_rt, log(rt_CVP, 2))
+		rt_log = max(prep_rt, log(rt_CVP, 2)) # not precise
 		rt = 2**(prep_rt) + rt_CVP
 		if rt < best_rt:
 			best_g = g

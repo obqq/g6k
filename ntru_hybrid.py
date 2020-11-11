@@ -44,6 +44,17 @@ def read_ntru_from_file(filename):
     return H, q
 
 
+def kbits(n, k):
+    limit=1<<n
+    val=(1<<k)-1
+    print(limit, val)
+    while val<limit:
+        yield "{0:0{1}b}".format(val,n)
+        minbit=val&-val #rightmost 1 bit
+        fillbit = (val+minbit)&~val  #rightmost 0 to the left of that bit
+        val = val+minbit | (fillbit//(minbit<<1))-1
+
+
 def ntru_kernel(arg0, params=None, seed=None):
     """
     Run the primal attack against Darmstadt LWE instance (n, alpha).
@@ -160,20 +171,20 @@ def ntru_kernel(arg0, params=None, seed=None):
     #   Preprocessing
     #
 
-    if blocksize < fpylll_crossover:
+    if beta < fpylll_crossover:
         if verbose:
-            print("Starting a fpylll BKZ-%d tour. " % (blocksize), end=' ')
+            print("Starting a fpylll BKZ-%d tour. " % (beta), end=' ')
             sys.stdout.flush()
             bkz = BKZReduction(g6k.M)
-            par = fplll_bkz.Param(blocksize,
+            par = fplll_bkz.Param(beta,
                                   strategies=fplll_bkz.DEFAULT_STRATEGY,
                                   max_loops=1)
             bkz(par)
 
     else:
         if verbose:
-            print("Starting a pnjBKZ-%d tour. " % (blocksize))
-            pump_n_jump_bkz_tour(g6k, tracer, blocksize, jump=jump,
+            print("Starting a pnjBKZ-%d tour. " % (beta))
+            pump_n_jump_bkz_tour(g6k, tracer, beta, jump=jump,
                                      verbose=verbose,
                                      extra_dim4free=extra_dim4free,
                                      dim4free_fun=dim4free_fun,
@@ -181,17 +192,25 @@ def ntru_kernel(arg0, params=None, seed=None):
                                      pump_params=pump_params)
 
             T_BKZ = time.time() - T0_BKZ
-
+    """
     if verbose:
         slope = basis_quality(g6k.M)["/"]
         fmt = "slope: %.5f, walltime: %.3f sec"
         print(fmt % (slope, time.time() - T0))
 
         g6k.lll(0, g6k.full_n)
+        """
+    #
+    # BDD Queries
+    #
+    print("g:", g)
+    mygenerator = kbits(10, 2)
+    for i in mygenerator:
+        print(i)
 
     return 1
 
-	"""
+    """
     raise ValueError("No solution found.")
     """
 def ntru():
