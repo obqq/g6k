@@ -117,14 +117,16 @@ def ntru_plain_hybrid_basis(A, g, q):
 	"""
 	n = A.ncols
 	ell = n - g
-	B = IntegerMatrix(n+ell, n)
+	B = IntegerMatrix((n+ell), (n+ell))
 	Bg = IntegerMatrix(g, n)
 
+
 	for i in range(ell):
+		B[i,i] = 1
 		for j in range(n):
-			B[i,j] = A[i,j]
+			B[i,j+ell] = A[i, j]
 	for i in range(n):
-		B[i+ell, i] = q
+		B[i+ell, i+ell] = q
 
 	for i in range(g):
 		for j in range(n):
@@ -135,8 +137,6 @@ def ntru_plain_hybrid_basis(A, g, q):
 	B = LLL.reduction(B)
 
 	# assert that LLL returns ell zero vectors and puts them on top
-	assert(B[:ell] == IntegerMatrix(ell, n))
-	B = B[ell:]
 	print("B:")
 	print(B)
 
