@@ -49,19 +49,25 @@ def kbits2(n, k):
     """
     assert 2*k<=n
     full_range = range(n)
-    # create all combinations of length k of indicies {0,...n-1} for indexing "1"s
+    # create all combinations of length k of indicies {0,...n-1}
+    # these are all possible positions of "1"s
     for pos1 in combinations(full_range, k):
         # remove pos1 from the range of pos2
-        # create all combinations of length k of indicies {0,...n-1} for indexing "-1"s
         new_range = []
         start_pos = 0
         for puncture in pos1:
             new_range+=tuple(range(start_pos, puncture))
             start_pos = puncture+1
-        print(pos1, new_range)
-        #for pos2 in combinations(n,k):
-            #check if they interstec
-        #   return 1
+        new_range+=tuple(range(start_pos, n))
+        # all possible positions of "-1"s
+        for pos2 in combinations(new_range,k):
+            yield pos1, pos2
 
 
-print(kbits2(4,2))
+counter = 0
+n = 13
+k = 2
+for pos1, pos2 in kbits2(n,k):
+     #print(pos1, pos2)
+     counter+=1
+print(counter, multinom(n,[k,k, n-2*k]))

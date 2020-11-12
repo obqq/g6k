@@ -15,9 +15,9 @@ import time
 import os.path
 
 from collections import OrderedDict # noqa
-from math import log
+from math import log, ceil, floor
 
-from fpylll import IntegerMatrix, BKZ as fplll_bkz
+from fpylll import GSO, IntegerMatrix, BKZ as fplll_bkz
 from fpylll.algorithms.bkz2 import BKZReduction
 from fpylll.tools.quality import basis_quality
 from fpylll.util import gaussian_heuristic
@@ -44,15 +44,49 @@ def read_ntru_from_file(filename):
     return H, q
 
 
+def combinations(iterable, r):
+    # combinations('ABCD', 2) --> AB AC AD BC BD CD
+    # combinations(range(4), 3) --> 012 013 023 123
+    pool = tuple(iterable)
+    n = len(pool)
+    if r > n:
+        return
+    indices = list(range(r))
+    yield tuple(pool[i] for i in indices)
+    while True:
+        for i in reversed(range(r)):
+            if indices[i] != i + n - r:
+                break
+        else:
+            return
+        indices[i] += 1
+        for j in range(i+1, r):
+            indices[j] = indices[j-1] + 1
+        yield tuple(pool[i] for i in indices)
+
+#
+# TODO: generalise to different number of 1s and -1s
+#
 def kbits(n, k):
-    limit=1<<n
-    val=(1<<k)-1
-    print(limit, val)
-    while val<limit:
-        yield "{0:0{1}b}".format(val,n)
-        minbit=val&-val #rightmost 1 bit
-        fillbit = (val+minbit)&~val  #rightmost 0 to the left of that bit
-        val = val+minbit | (fillbit//(minbit<<1))-1
+    """
+        k position of "1"s
+        k position of "-1"s
+    """
+    assert 2*k<=n
+    full_range = range(n)
+    # create all combinations of length k of indicies {0,...n-1}
+    # these are all possible positions of "1"s
+    for pos1 in combinations(full_range, k):
+        # remove pos1 from the range of pos2
+        new_range = []
+        start_pos = 0
+        for puncture in pos1:
+            new_range+=tuple(range(start_pos, puncture))
+            start_pos = puncture+1
+        new_range+=tuple(range(start_pos, n))
+        # all possible positions of "-1"s
+        for pos2 in combinations(new_range,k):
+            yield pos1, pos2
 
 
 def ntru_kernel(arg0, params=None, seed=None):
@@ -61,10 +95,6 @@ def ntru_kernel(arg0, params=None, seed=None):
 
     :param n: the dimension of the LWE-challenge secret
     :param params: parameters for LWE:
-
-        - lwe/alpha: the noise rate of the LWE-challenge
-
-        - lwe/m: the number of samples to use for the primal attack
 
         - lwe/goal_margin: accept anything that is
           goal_margin * estimate(length of embedded vector)
@@ -142,12 +172,16 @@ def ntru_kernel(arg0, params=None, seed=None):
     print(paramset_NTRU1)
     beta, g, rt = plain_hybrid_compleixty(paramset_NTRU1)
 
+    #
+    if g<4:
+        g = 0
+
     print('beta, g, rt:', beta, g, rt)
-    B = ntru_plain_hybrid_basis(H, g, q)
+    B, Bg = ntru_plain_hybrid_basis(H, g, q)
     print(params)
 
-    blocksizes = list(range(10, 50)) + [beta-20, beta-17] + list(range(beta - 14, beta + 25, 2))
-    print("blocksizes:", blocksizes)
+    #blocksizes = list(range(10, 50)) + [beta-20, beta-17] + list(range(beta - 14, beta + 25, 2))
+    #print("blocksizes:", blocksizes)
 
     g6k = Siever(B, params)
     print("GSO precision: ", g6k.M.float_type)
@@ -159,18 +193,18 @@ def ntru_kernel(arg0, params=None, seed=None):
 
     d = g6k.full_n
     g6k.lll(0, g6k.full_n)
+    print(g6k.MatGSO)
     slope = basis_quality(g6k.M)["/"]
     print("Intial Slope = %.5f\n" % slope)
 
     print(d, 2*n - g)
 
-    target_norm = (2./3)*d  + 1
+    target_norm = (2./3)*(d)
     print("target_norm:", target_norm)
 
     #
     #   Preprocessing
     #
-
     if beta < fpylll_crossover:
         if verbose:
             print("Starting a fpylll BKZ-%d tour. " % (beta), end=' ')
@@ -200,13 +234,29 @@ def ntru_kernel(arg0, params=None, seed=None):
 
         g6k.lll(0, g6k.full_n)
         """
+
+    if g == 0:
+        if(g6k.M.get_r(0, 0) <= target_norm):
+            print(g6k.M.B[0])
+            return g6k.M.B[0]
+        else:
+            raise ValueError("No solution found.")
+
     #
     # BDD Queries
     #
-    #print("g:", g)
-    #mygenerator = kbits(10, 2)
-    #for i in mygenerator:
-    #    print(i)
+    #target = -s*B
+    target = [0]*n
+    for pos1,pos2 in kbits(g, ceil(g*2./3)):
+        s = [0] * g
+        for i in pos1:
+            s[i] = 1
+            target-=Bg[i]
+        for i in pos2:
+            assert s[i] == 0
+            s[i] = -1
+            target+=Bg[i]
+        print(target)
 
     return 1
 

@@ -76,7 +76,7 @@ def plain_hybrid_compleixty(paramset, verbose = False):
 		#print('g:', g, beta, w_scaled, S)
 		rt_CVP = S*BabaiRT(beta)
 		rt_log = max(prep_rt, log(rt_CVP, 2)) # not precise
-		print(prep_rt, log(rt_CVP, 2))
+		#print(prep_rt, log(rt_CVP, 2))
 		rt = 2**(prep_rt) + rt_CVP
 		if rt < best_rt:
 			best_g = g
@@ -118,50 +118,26 @@ def ntru_plain_hybrid_basis(A, g, q):
 	n = A.ncols
 	ell = n - g
 	B = IntegerMatrix(n+ell, n)
+	Bg = IntegerMatrix(g, n)
 
 	for i in range(ell):
 		for j in range(n):
-			B[i,j] = A[j, i]
+			B[i,j] = A[i,j]
 	for i in range(n):
 		B[i+ell, i] = q
 
+	for i in range(g):
+		for j in range(n):
+			Bg[i,j] = A[i+ell, j]
+
+	print("B:")
+	print(B)
+	B = LLL.reduction(B)
+
+	# assert that LLL returns ell zero vectors and puts them on top
+	assert(B[:ell] == IntegerMatrix(ell, n))
+	B = B[ell:]
+	print("B:")
 	print(B)
 
-	B = LLL.reduction(B)
-
-	return B
-
-
-
-
-
-def primal_lattice_basis(A, c, q, m=None):
-	"""
-	Construct primal lattice basis for LWE challenge
-	``(A,c)`` defined modulo ``q``.
-
-	:param A: LWE matrix
-	:param c: LWE vector
-	:param q: integer modulus
-	:param m: number of samples to use (``None`` means all)
-
-	"""
-	if m is None:
-		m = A.nrows
-	elif m > A.nrows:
-		raise ValueError("Only m=%d samples available." % A.nrows)
-	n = A.ncols
-
-	B = IntegerMatrix(m+n+1, m+1)
-	for i in range(m):
-		for j in range(n):
-			B[j, i] = A[i, j]
-		B[i+n, i] = q
-		B[-1, i] = c[i]
-	B[-1, -1] = 1
-
-	B = LLL.reduction(B)
-	assert(B[:n] == IntegerMatrix(n, m+1))
-	B = B[n:]
-
-	return B
+	return B, Bg

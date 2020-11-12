@@ -219,5 +219,4 @@ def primal_lattice_basis(A, c, q, m=None):
     B = LLL.reduction(B)
     assert(B[:n] == IntegerMatrix(n, m+1))
     B = B[n:]
-
     return B
