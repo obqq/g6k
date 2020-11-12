@@ -132,12 +132,6 @@ def ntru_plain_hybrid_basis(A, g, q):
 		for j in range(n):
 			Bg[i,j] = A[i+ell, j]
 
-	print("B:")
-	print(B)
 	B = LLL.reduction(B)
-
-	# assert that LLL returns ell zero vectors and puts them on top
-	print("B:")
-	print(B)
 
 	return B, Bg

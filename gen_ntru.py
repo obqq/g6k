@@ -12,17 +12,17 @@ def gen_small(s, n):
 	coeff_vector[deg-1] = 1
 	coeff_vector[0] = 1
 	index_set = set()
-	for i in range(s):
+	for i in range(s-2):
 	# add 1's
 		while True:
-			index = ZZ.random_element(1,deg-1)
+			index = ZZ.random_element(1,deg-2)
 			if not index in index_set:
 				coeff_vector[index] = 1
 				index_set.union({index})
 				break
 	# add -1's
 		while True:
-			index = ZZ.random_element(1,deg-1)
+			index = ZZ.random_element(1,deg-2)
 			if not index in index_set:
 				coeff_vector[index] = -1
 				index_set.union({index})
@@ -75,9 +75,10 @@ def gen_ntru_challenge(n):
 	Fx_qou = Fx.quotient(K.polynomial(), 'x')
 	variable_x = Fx_qou.gen()
 
-	sparsity = ceil(n/3.)
-
-	f_poly = (gen_small(sparsity+1, n))
+	n1 = n/2
+	sparsity = ceil(n1/3.)
+	print('sparsity:', sparsity)
+	f_poly = (gen_small(sparsity, n))
 	g_poly = (gen_small(sparsity, n))
 	h = Fx_qou(f_poly)/Fx_qou(g_poly)
 
@@ -99,7 +100,6 @@ def gen_ntru_challenge(n):
 		assert qvec_red[i] % q == 0
 		qvec_red[i]  = -qvec[i] / q
 	#print("qvec_red:", qvec_red)
-	n1 = n/2
 	B = matrix(ZZ, 2*n1, 2*n1)
 
 	for i in range(n1):
@@ -114,6 +114,8 @@ def gen_ntru_challenge(n):
 	#print(g_poly, f_poly)
 	#print(f_check[:n1])
 
+	print(norm(vector(ZZ, f_poly)), norm(vector(ZZ, g_poly)))
+
 
 	B = B.LLL()
 	b0 = B[0][:n1]
@@ -121,7 +123,6 @@ def gen_ntru_challenge(n):
 
 
 	for i in range(len(rotations)):
-		print(b0, rotations[i], type(b0), type(rotations[i]))
 		if vector(b0) == vector(rotations[i]):
 			print(i, rotations[i])
 			break
@@ -157,5 +158,5 @@ def check(H, g, q, qvec):
 
 
 if __name__ == '__main__':
-	n = 32
-	gen_ntru_challenge(32)
+	n = 64
+	gen_ntru_challenge(64)

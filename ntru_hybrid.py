@@ -197,8 +197,7 @@ def ntru_kernel(arg0, params=None, seed=None):
     slope = basis_quality(g6k.M)["/"]
     print("Intial Slope = %.5f\n" % slope)
 
-    print(d, 2*n - g)
-
+    print('d:', d)
     target_norm = (2./3)*(d)
     print("target_norm:", target_norm)
 
@@ -234,7 +233,7 @@ def ntru_kernel(arg0, params=None, seed=None):
 
         g6k.lll(0, g6k.full_n)
         """
-
+    print(g6k.M.get_r(0, 0))
     if g == 0:
         if(g6k.M.get_r(0, 0) <= target_norm):
             print(g6k.M.B[0])
