@@ -45,7 +45,6 @@ def log_gh_svp(d, delta_bkz, svp_dim, n, q):
 	return ball_part + vol_part
 
 def multinom(n, c):
-
 	assert sum(c) == n, 'bad input to multinom!'
 	res = 1
 	n_ = n
@@ -74,7 +73,7 @@ def plain_hybrid_compleixty(paramset, verbose = False):
 		w_scaled = (float(w*g) / n) # assume the weight is uniformly distributed over s
 		S = multinom(g, [ceil(w_scaled/3.), ceil(w_scaled/3.), g - 2.*ceil(w_scaled/3.)]) # number of CVP batches
 		#print('g:', g, beta, w_scaled, S)
-		rt_CVP = S*BabaiRT(beta)
+		rt_CVP = S*BabaiRT(n)
 		rt_log = max(prep_rt, log(rt_CVP, 2)) # not precise
 		print(prep_rt, log(rt_CVP, 2))
 		rt = 2**(prep_rt) + rt_CVP
@@ -85,7 +84,7 @@ def plain_hybrid_compleixty(paramset, verbose = False):
 			best_beta = beta
 			if verbose:
 				print('rt_log:', best_rt_log, 'beta:', beta,'g:', g)
-	return best_beta, best_g, best_rt
+	return best_beta, best_g, log(best_rt,2)
 
 
 

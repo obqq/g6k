@@ -159,7 +159,7 @@ def find_beta(n, q, nrows, svp_alg = sievig0292):
 				break
 			#print('find_beta:', n, q, beta, nsamples)
 			GSA, i, j = getGSA(n, q, beta, nsamples)
-			print(GSA)
+			#print(GSA)
 			if exp(GSA[dim-beta]) > sqrt(2.0/3.0 * beta): #2/3 is the error sparsity (assume the error is uniform from {+-1, 0}
 				beta_opt = beta
 				nsamples_opt = nsamples
