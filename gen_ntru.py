@@ -7,25 +7,26 @@ def gen_small(s, n):
 	"""
 	s+1 entries of 1s and s entries of -1s
 	"""
-	deg = n/2
+	deg = n
 	coeff_vector = deg*[0]
 	coeff_vector[deg-1] = 1
 	coeff_vector[0] = 1
-	index_set = set()
+	index_set = set({0,deg-1})
 	for i in range(s-2):
 	# add 1's
 		while True:
-			index = ZZ.random_element(1,deg-2)
-			if not index in index_set:
-				coeff_vector[index] = 1
-				index_set.union({index})
+			index1 = ZZ.random_element(1,deg-1)
+			if not index1 in index_set:
+				coeff_vector[index1] = 1
+				index_set = index_set.union({index1})
 				break
 	# add -1's
+	for i in range(s):
 		while True:
-			index = ZZ.random_element(1,deg-2)
-			if not index in index_set:
-				coeff_vector[index] = -1
-				index_set.union({index})
+			index2 = ZZ.random_element(1,deg-1)
+			if not index2 in index_set:
+				coeff_vector[index2] = -1
+				index_set = index_set.union({index2})
 				break
 	return coeff_vector
 
@@ -33,7 +34,7 @@ def gen_small(s, n):
 
 def print_ntru(q, h, variable_x, filename):
 	n = len(list(h))
-	f = file(filename, 'w')
+	f = open(filename, 'w')
 	f.write(str(q)+'\n')
 	#f.write('[')
 	HMat = [0]*n
@@ -75,11 +76,10 @@ def gen_ntru_challenge(n):
 	Fx_qou = Fx.quotient(K.polynomial(), 'x')
 	variable_x = Fx_qou.gen()
 
-	n1 = n/2
+	n1 = int(n/2)
 	sparsity = ceil(n1/3.)
-	print('sparsity:', sparsity)
-	f_poly = (gen_small(sparsity, n))
-	g_poly = (gen_small(sparsity, n))
+	f_poly = (gen_small(sparsity, n1))
+	g_poly = (gen_small(sparsity, n1))
 	h = Fx_qou(f_poly)/Fx_qou(g_poly)
 
 	rotations = all_rotations(Fx_qou(g_poly),variable_x,q)
@@ -95,8 +95,8 @@ def gen_ntru_challenge(n):
 	qvec = vector(ZZ,g_poly)*Hmat - vector(f_poly)
 	assert(len(qvec) == n/2)
 	#print("qvec:", qvec)
-	qvec_red = [0]*(n/2)
-	for i in range(n/2):
+	qvec_red = [0]*int(n/2)
+	for i in range(n1):
 		assert qvec_red[i] % q == 0
 		qvec_red[i]  = -qvec[i] / q
 	#print("qvec_red:", qvec_red)
@@ -114,9 +114,8 @@ def gen_ntru_challenge(n):
 	#print(g_poly, f_poly)
 	#print(f_check[:n1])
 
-	print(norm(vector(ZZ, f_poly)), norm(vector(ZZ, g_poly)))
 
-
+	"""
 	B = B.LLL()
 	b0 = B[0][:n1]
 	print('b0:', b0, norm(b0))
@@ -126,37 +125,17 @@ def gen_ntru_challenge(n):
 		if vector(b0) == vector(rotations[i]):
 			print(i, rotations[i])
 			break
-
+	"""
 	filename = 'ntru_n_'+str(n)+'_solution.txt'
-	f = file(filename, 'w')
+	f = open(filename, 'w')
 	f.write(str(list(f_poly))+'\n')
 	f.write(str(list(g_poly)))
 	f.close()
 
 	return h, q
 
-def check(H, g, q, qvec):
-	n = H.ncols()
-	B = matrix(ZZ, 2*n, 2*n)
-
-	for i in range(n):
-		B[i,i] = 1
-		for j in range(n):
-			B[i,n+j] = H[i, j]
-		B[i+n, i+n] = q
-	#print("B:")
-	#print(B)
-	f_check = vector(list(g) + list(qvec))*B
-	f_check = vector(ZZ, [f_check[i] for i in range(2*n)])
-
-
-	B = B.LLL()
-	print(B[0])
-	print(B[1])
-
-	return f_check
 
 
 if __name__ == '__main__':
-	n = 64
-	gen_ntru_challenge(64)
+	n = 256
+	gen_ntru_challenge(256)

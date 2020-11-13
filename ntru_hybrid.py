@@ -170,9 +170,9 @@ def ntru_kernel(arg0, params=None, seed=None):
     # compute the attack parameters
     paramset_NTRU1 = {'n': n, 'q': q, 'w': 2*(n/3.)}
     print(paramset_NTRU1)
-    beta, g, rt = plain_hybrid_compleixty(paramset_NTRU1)
-
-    #
+    beta, g, rt = plain_hybrid_compleixty(paramset_NTRU1, verbose = True)
+    print('beta, g, rt:', beta, g, rt)
+    """
     if g<4:
         g = 0
 
@@ -198,7 +198,7 @@ def ntru_kernel(arg0, params=None, seed=None):
     print("Intial Slope = %.5f\n" % slope)
 
     print('d:', d)
-    target_norm = (2./3)*(d)
+    target_norm = ceil( (2./3)*d + 1) + 1
     print("target_norm:", target_norm)
 
     #
@@ -225,14 +225,7 @@ def ntru_kernel(arg0, params=None, seed=None):
                                      pump_params=pump_params)
 
             T_BKZ = time.time() - T0_BKZ
-    """
-    if verbose:
-        slope = basis_quality(g6k.M)["/"]
-        fmt = "slope: %.5f, walltime: %.3f sec"
-        print(fmt % (slope, time.time() - T0))
 
-        g6k.lll(0, g6k.full_n)
-        """
     print(g6k.M.get_r(0, 0))
     if g == 0:
         if(g6k.M.get_r(0, 0) <= target_norm):
@@ -256,12 +249,9 @@ def ntru_kernel(arg0, params=None, seed=None):
             s[i] = -1
             target+=Bg[i]
         print(target)
-
-    return 1
-
-    """
+		"""
     raise ValueError("No solution found.")
-    """
+
 def ntru():
     """
     Attempt to solve an lwe challenge.

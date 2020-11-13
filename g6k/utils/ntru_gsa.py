@@ -152,19 +152,19 @@ def find_beta(n, q, nrows, svp_alg = sievig0292):
 	rt_min = 10000 #infinity TODO: try float("inf")
 	nsamples_opt = nrows
 	beta_opt = 10000 #infinity
-	for nsamples in range(nrows/2, nrows, 5):
+	for nsamples in range( int(nrows/2), nrows, 5):
 		dim = n+nsamples
-		for beta in range(15, dim,5):
+		for beta in range(15, dim, 5):
 			if svp_alg(beta)>=rt_min:
 				break
 			#print('find_beta:', n, q, beta, nsamples)
 			GSA, i, j = getGSA(n, q, beta, nsamples)
-			#print(GSA)
+			print(GSA)
 			if exp(GSA[dim-beta]) > sqrt(2.0/3.0 * beta): #2/3 is the error sparsity (assume the error is uniform from {+-1, 0}
 				beta_opt = beta
 				nsamples_opt = nsamples
 				rt_min = svp_alg(beta_opt)
-				#print('find_beta', beta_opt, nsamples_opt, rt_min)
+				print('find_beta', beta_opt, nsamples_opt, rt_min)
 				break
 
 

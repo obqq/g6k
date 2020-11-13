@@ -69,14 +69,14 @@ def plain_hybrid_compleixty(paramset, verbose = False):
 	best_prep = float("inf")
 	best_beta = n
 
-	for g in range(2, n/2):
+	for g in range(2, int(n/2)):
 		beta, nsamples, prep_rt = find_beta(n-g, q, n) #g determines beta
 		w_scaled = (float(w*g) / n) # assume the weight is uniformly distributed over s
 		S = multinom(g, [ceil(w_scaled/3.), ceil(w_scaled/3.), g - 2.*ceil(w_scaled/3.)]) # number of CVP batches
 		#print('g:', g, beta, w_scaled, S)
 		rt_CVP = S*BabaiRT(beta)
 		rt_log = max(prep_rt, log(rt_CVP, 2)) # not precise
-		#print(prep_rt, log(rt_CVP, 2))
+		print(prep_rt, log(rt_CVP, 2))
 		rt = 2**(prep_rt) + rt_CVP
 		if rt < best_rt:
 			best_g = g
@@ -87,28 +87,6 @@ def plain_hybrid_compleixty(paramset, verbose = False):
 				print('rt_log:', best_rt_log, 'beta:', beta,'g:', g)
 	return best_beta, best_g, best_rt
 
-
-
-def sim_params(n, alpha):
-	A, c, q = load_lwe_challenge(n, alpha)
-	stddev = alpha*q
-	winning_params = []
-	for m in range(60, min(2*n+1, A.nrows+1)):
-		B = primal_lattice_basis(A, c, q, m=m)
-		M = GSO.Mat(B)
-		M.update_gso()
-		beta_bound = min(m+1, 110+default_dim4free_fun(110)+1)
-		svp_bound = min(m+1, 151)
-		rs = [M.get_r(i, i) for i in range(M.B.nrows)]
-		for beta in range(40, beta_bound):
-			rs, _ = simulate(rs, fplll_bkz.EasyParam(beta, max_loops=1))
-			for svp_dim in range(40, svp_bound):
-				gh = gaussian_heuristic(rs[M.B.nrows-svp_dim:])
-				if svp_dim*(stddev**2) < gh:
-					winning_params.append([beta, svp_dim, m+1])
-					break
-	min_param = find_min_complexity(winning_params)
-	return min_param
 
 
 def ntru_plain_hybrid_basis(A, g, q):
@@ -135,3 +113,24 @@ def ntru_plain_hybrid_basis(A, g, q):
 	B = LLL.reduction(B)
 
 	return B, Bg
+
+def sim_params(n, alpha):
+	A, c, q = load_lwe_challenge(n, alpha)
+	stddev = alpha*q
+	winning_params = []
+	for m in range(60, min(2*n+1, A.nrows+1)):
+		B = primal_lattice_basis(A, c, q, m=m)
+		M = GSO.Mat(B)
+		M.update_gso()
+		beta_bound = min(m+1, 110+default_dim4free_fun(110)+1)
+		svp_bound = min(m+1, 151)
+		rs = [M.get_r(i, i) for i in range(M.B.nrows)]
+		for beta in range(40, beta_bound):
+			rs, _ = simulate(rs, fplll_bkz.EasyParam(beta, max_loops=1))
+			for svp_dim in range(40, svp_bound):
+				gh = gaussian_heuristic(rs[M.B.nrows-svp_dim:])
+				if svp_dim*(stddev**2) < gh:
+					winning_params.append([beta, svp_dim, m+1])
+					break
+	min_param = find_min_complexity(winning_params)
+	return min_param
