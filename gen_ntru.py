@@ -1,6 +1,9 @@
-
-
+import os
+import sys
 from sage.all import *
+
+
+NTRU_BASEDIR = 'ntru_challenge'
 
 
 def gen_small(s, n):
@@ -87,8 +90,8 @@ def gen_ntru_challenge(n):
 	#print('g*h', Fx_qou(g_poly)*h)
 
 
-	filename = 'ntru_n_'+str(n)+'.txt'
-	Hmat = print_ntru(q, h, variable_x, filename)
+	file_path = os.path.join(NTRU_BASEDIR, 'ntru_n_' + str(n) + '.txt')
+	Hmat = print_ntru(q, h, variable_x, file_path)
 	Hmat = matrix(ZZ,[hrow for hrow in Hmat])
 
 
@@ -126,8 +129,8 @@ def gen_ntru_challenge(n):
 			print(i, rotations[i])
 			break
 	"""
-	filename = 'ntru_n_'+str(n)+'_solution.txt'
-	f = open(filename, 'w')
+	file_path = os.path.join(NTRU_BASEDIR, 'ntru_n_' + str(n) + '_solution.txt')
+	f = open(file_path, 'w')
 	f.write(str(list(f_poly))+'\n')
 	f.write(str(list(g_poly)))
 	f.close()
@@ -135,7 +138,10 @@ def gen_ntru_challenge(n):
 	return h, q
 
 
+def main():
+	_, n = sys.argv
+	print(n)
+	gen_ntru_challenge(int(n))
 
 if __name__ == '__main__':
-	n = 256
-	gen_ntru_challenge(256)
+	main()
