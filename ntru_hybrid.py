@@ -17,6 +17,8 @@ import os.path
 from collections import OrderedDict # noqa
 from math import log, ceil, floor, exp
 
+import numpy as np
+
 from fpylll import GSO, IntegerMatrix, BKZ as fplll_bkz
 from fpylll.algorithms.bkz2 import BKZReduction
 from fpylll.tools.quality import basis_quality
@@ -32,12 +34,20 @@ from g6k.utils.lwe_estimation import gsa_params, primal_lattice_basis
 from six.moves import range
 
 from g6k.utils.ntru_hybrid_estimation import plain_hybrid_compleixty, ntru_plain_hybrid_basis
+<<<<<<< HEAD
 from g6k.utils.ntru_gsa import find_beta
+=======
 
-def read_ntru_from_file(filename):
-    if not os.path.isfile(filename):
-        raise ValueError ('file ', filename, 'is not found')
-    data = open(filename, "r").readlines()
+NTRU_BASEDIR = 'ntru_challenge'
+
+def read_ntru_from_file(n):
+    file_path = os.path.join(NTRU_BASEDIR, f'ntru_n_{n}.txt')
+>>>>>>> simhash script added
+
+    if not os.path.isfile(file_path):
+        raise ValueError (f'File {file_path} not found!')
+
+    data = open(file_path, "r").readlines()
     q = int(data[0])
     H = eval(",".join([s_.replace('\n','').replace(" ", ", ") for s_ in data[1 :]]))
     H = IntegerMatrix.from_matrix(H)
@@ -72,7 +82,7 @@ def kbits(n, k):
         k position of "1"s
         k position of "-1"s
     """
-    assert 2*k<=n
+    assert 2*k <= n
     full_range = range(n)
     # create all combinations of length k of indicies {0,...n-1}
     # these are all possible positions of "1"s
@@ -161,20 +171,27 @@ def ntru_kernel(arg0, params=None, seed=None):
     dont_trace = params.pop("dummy_tracer")
     verbose = params.pop("verbose")
 
-    filename = 'ntru_n_'+str(n)+'.txt'
-    H, q = read_ntru_from_file(filename)
+    A, q = read_ntru_from_file(n)
 
-    print("Hybrid attack on NTRU n=%d" %n)
+    print("Hybrid attack on NTRU n=%d" % n)
 
 
     # compute the attack parameters
-    paramset_NTRU1 = {'n': n, 'q': q, 'w': 2*(n/3.)}
+    w = 2*(n/3.)
+    paramset_NTRU1 = {'n': n, 'q': q, 'w': w}
     print(paramset_NTRU1)
+<<<<<<< HEAD
     beta, g, rt, nsamples, GSA = plain_hybrid_compleixty(paramset_NTRU1, verbose = True)
     #print('beta, g, rt, nsamples:', beta, g, rt, nsamples)
 
     # if g is too small to help, recompute BKZ params
     if g<=4:
+=======
+    beta, g, rt = plain_hybrid_compleixty(paramset_NTRU1, verbose = True)
+    print('beta, g, rt:', beta, g, rt)
+
+    if g < 4:
+>>>>>>> simhash script added
         g = 0
         beta, nsamples,rt, GSA = find_beta(n, q, n)
 
@@ -184,9 +201,15 @@ def ntru_kernel(arg0, params=None, seed=None):
 
     B, Bg = ntru_plain_hybrid_basis(H, g, q, n)
 
+<<<<<<< HEAD
+=======
+    print('beta, g, rt:', beta, g, rt)
+    B, Bg = ntru_plain_hybrid_basis(A, g, q)
+    print(params)
+>>>>>>> simhash script added
 
-    #blocksizes = list(range(10, 50)) + [beta-20, beta-17] + list(range(beta - 14, beta + 25, 2))
-    #print("blocksizes:", blocksizes)
+    # blocksizes = list(range(10, 50)) + [beta-20, beta-17] + list(range(beta - 14, beta + 25, 2))
+    # print("blocksizes:", blocksizes)
 
     g6k = Siever(B, params)
 
@@ -241,55 +264,130 @@ def ntru_kernel(arg0, params=None, seed=None):
         else:
             raise ValueError("No solution found.")
 
+<<<<<<< HEAD
+=======
+    n = A.ncols
+    ell = n - g
+    Al = A.submatrix(0, 0, l, n)
+
+    # check if Bg + Al = A
+
+    #
+    # L1 & L2 lists construction
+    #
+
+    L1, L2 = construct_lists(Al, w)
+>>>>>>> simhash script added
 
     #
     # BDD Queries
     #
+    
     #target = -s*B
     target = [0]*n
-    for pos1,pos2 in kbits(g, ceil(g*2./3)):
+    for pos1, pos2 in kbits(g, ceil(g*2./3)):
         s = [0] * g
         for i in pos1:
             s[i] = 1
-            target-=Bg[i]
+            target -= Bg[i]
         for i in pos2:
             assert s[i] == 0
             s[i] = -1
-            target+=Bg[i]
+            target += Bg[i]
         print(target)
+<<<<<<< HEAD
 #    """
+=======
+
+    #from simhash import closest_pairs
+
+    # V1
+    # V2
+
+
+>>>>>>> simhash script added
     raise ValueError("No solution found.")
 
-def ntru():
+def ntru(n=2):
     """
     Attempt to solve an lwe challenge.
 
     """
     description = ntru.__doc__
 
-    args, all_params = parse_args(description,
-                                  ntru__m=None,
-                                  lwe__goal_margin=1.5,
-                                  lwe__svp_bkz_time_factor=1,
-                                  bkz__blocksizes=None,
-                                  bkz__tours=1,
-                                  bkz__jump=1,
-                                  bkz__extra_dim4free=12,
-                                  bkz__fpylll_crossover=51,
-                                  bkz__dim4free_fun="default_dim4free_fun",
-                                  pump__down_sieve=True,
-                                  dummy_tracer=True,  # set to control memory
-                                  verbose=True
-                                  )
+    ntru_kernel(n, params={'ntru__m': None,
+              'lwe/goal_margin': 1.5,
+              'lwe/svp_bkz_time_factor': 1,
+              'bkz/blocksizes': None,
+              'bkz/tours': 1,
+              'bkz/jump': 1,
+              'bkz/extra_dim4free': 12,
+              'bkz/fpylll_crossover': 51,
+              'bkz/dim4free_fun': "default_dim4free_fun",
+              'pump__down_sieve': True,
+              'dummy_tracer': True,  # set to control memory
+              'verbose': True})
 
-    stats = run_all(ntru_kernel, list(all_params.values()), # noqa
-                    lower_bound=args.lower_bound,
-                    upper_bound=args.upper_bound,
-                    step_size=args.step_size,
-                    trials=args.trials,
-                    workers=args.workers,
-                    seed=args.seed)
+    # args, all_params = parse_args(description,
+    #                               ntru__m=None,
+    #                               lwe__goal_margin=1.5,
+    #                               lwe__svp_bkz_time_factor=1,
+    #                               bkz__blocksizes=None,
+    #                               bkz__tours=1,
+    #                               bkz__jump=1,
+    #                               bkz__extra_dim4free=12,
+    #                               bkz__fpylll_crossover=51,
+    #                               bkz__dim4free_fun="default_dim4free_fun",
+    #                               pump__down_sieve=True,
+    #                               dummy_tracer=True,  # set to control memory
+    #                               verbose=True
+    #                               )
+    #
+    # stats = run_all(ntru_kernel, list(all_params.values()), # noqa
+    #                 lower_bound=args.lower_bound,
+    #                 upper_bound=args.upper_bound,
+    #                 step_size=args.step_size,
+    #                 trials=args.trials,
+    #                 workers=args.workers,
+    #                 seed=args.seed)
 
+
+def IM_hash():
+    '''
+    Ubdyk-Motwani locality-sensitive hash
+    '''
+
+
+def construct_lists(A=None, b=None, q=None, w=None, M=2):
+    '''
+    Input (A, b)
+    w
+    M - memory upper bound
+    '''
+    v = np.array([w/2, w/4])
+    R = v*v
+
+    r = floor(log(R, q))
+
+    L_norm = 2^(1/2*n) # todo
+    m = ceil(log(L_norm^2 / M, q))
+    T = ceil(q^m / R)
+
+    print(m, T)
+
+    for i in [1, 3]:
+            L_i = []
+
+    for _ in range(T):
+        t = IntegerMatrix(1, m)
+        t.randomize(q=q)
+        pass
+
+
+def main():
+    # construct_lists(w=4)
+    _, n = sys.argv
+    ntru(int(n))
 
 if __name__ == '__main__':
-    ntru()
+    main()
