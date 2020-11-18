@@ -136,5 +136,5 @@ def gen_ntru_challenge(n):
 
 
 if __name__ == '__main__':
-	n = 64
-	gen_ntru_challenge(64)
+	n = 128
+	gen_ntru_challenge(128)

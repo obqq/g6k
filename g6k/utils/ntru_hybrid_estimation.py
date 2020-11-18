@@ -65,10 +65,10 @@ def plain_hybrid_compleixty(paramset, verbose = False):
 
 	best_g = 0
 	best_nsamples = 0
-	best_beta, best_nsamples, best_prep, GSA = find_beta(n, q, n)
+	best_beta, best_nsamples, best_prep, best_GSA = find_beta(n, q, n)
 	best_rt = 2**best_prep
 
-	for g in range(4, int(n/2)):
+	for g in range(3, int(n/2)):
 		beta, nsamples, prep_rt, GSA = find_beta(n-g, q, n) #g determines beta
 		w_scaled = (float(w*g) / n) # assume the weight is uniformly distributed over s
 		S = multinom(g, [ceil(w_scaled/3.), ceil(w_scaled/3.), g - 2.*ceil(w_scaled/3.)]) # number of CVP batches
@@ -83,9 +83,10 @@ def plain_hybrid_compleixty(paramset, verbose = False):
 			best_rt_log = rt_log
 			best_beta = beta
 			best_nsamples = nsamples
+			best_GSA = GSA
 			if verbose:
 				print('rt_log:', best_rt_log, 'beta:', beta,'g:', g)
-	return best_beta, best_g, log(best_rt,2), GSA, nsamples
+	return best_beta, best_g, log(best_rt,2), best_nsamples, best_GSA
 
 
 
@@ -95,6 +96,7 @@ def ntru_plain_hybrid_basis(A, g, q, nsamples):
 	"""
 	n = A.ncols
 	ell = n - g
+	print(n, ell, nsamples)
 	B = IntegerMatrix((nsamples+ell), (nsamples+ell))
 	Bg = IntegerMatrix(g, n)
 

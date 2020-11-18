@@ -32,7 +32,7 @@ from g6k.utils.lwe_estimation import gsa_params, primal_lattice_basis
 from six.moves import range
 
 from g6k.utils.ntru_hybrid_estimation import plain_hybrid_compleixty, ntru_plain_hybrid_basis
-
+from g6k.utils.ntru_gsa import find_beta
 
 def read_ntru_from_file(filename):
     if not os.path.isfile(filename):
@@ -170,16 +170,20 @@ def ntru_kernel(arg0, params=None, seed=None):
     # compute the attack parameters
     paramset_NTRU1 = {'n': n, 'q': q, 'w': 2*(n/3.)}
     print(paramset_NTRU1)
-    beta, g, rt, GSA, nsamples = plain_hybrid_compleixty(paramset_NTRU1, verbose = True)
-    print('beta, g, rt, nsamples:', beta, g, rt, nsamples)
+    beta, g, rt, nsamples, GSA = plain_hybrid_compleixty(paramset_NTRU1, verbose = True)
+    #print('beta, g, rt, nsamples:', beta, g, rt, nsamples)
 
+    # if g is too small to help, recompute BKZ params
     if g<=4:
         g = 0
+        beta, nsamples,rt, GSA = find_beta(n, q, n)
 
-    B, Bg = ntru_plain_hybrid_basis(H, g, q, nsamples)
-    print(params)
+    print('beta, g, rt, nsamples:', beta, g, rt, nsamples)
     print('GSA predicted:')
     print([exp(GSA[i]) for i in range(len(GSA))])
+
+    B, Bg = ntru_plain_hybrid_basis(H, g, q, nsamples)
+
 
     #blocksizes = list(range(10, 50)) + [beta-20, beta-17] + list(range(beta - 14, beta + 25, 2))
     #print("blocksizes:", blocksizes)
@@ -191,7 +195,7 @@ def ntru_kernel(arg0, params=None, seed=None):
         tracer = dummy_tracer
     else:
         tracer = SieveTreeTracer(g6k, root_label=("ntru"), start_clocks=True)
-
+#    """
     d = g6k.full_n
     g6k.lll(0, g6k.full_n)
     print(g6k.MatGSO)
@@ -232,6 +236,7 @@ def ntru_kernel(arg0, params=None, seed=None):
 
     print('GSA output:')
     print([g6k.M.get_r(i, i) for i in range(d)])
+    #print(g6k.M.get_r(0, 0))
 
     if g == 0:
         if(g6k.M.get_r(0, 0) <= target_norm):
@@ -240,7 +245,7 @@ def ntru_kernel(arg0, params=None, seed=None):
         else:
             raise ValueError("No solution found.")
 
-    """
+
     #
     # BDD Queries
     #
@@ -256,7 +261,7 @@ def ntru_kernel(arg0, params=None, seed=None):
             s[i] = -1
             target+=Bg[i]
         print(target)
-    """
+#    """
     raise ValueError("No solution found.")
 
 def ntru():
