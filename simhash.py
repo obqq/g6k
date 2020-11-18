@@ -1,5 +1,5 @@
 import os
-from math import ceil
+from math import inf, ceil
 import numpy as np
 
 XPC_WORD_LEN = 4 # number of 64-bit words of simhashes
@@ -7,6 +7,7 @@ XPC_BIT_LEN = 256 # number of bits for simhashes
 
 SIMHASH_CODES_BASEDIR = 'spherical_coding'
 
+DEBUG = False
 
 class SimHashes:
     '''
@@ -27,7 +28,6 @@ class SimHashes:
                     # (This is to make simhash selection less random in multithreading and to actually simplify some internal code)
 
         self.reset_compress_pos()
-        print(self.compress_pos)
 
     def reset_compress_pos(self):
         '''
@@ -35,7 +35,7 @@ class SimHashes:
         This is called during changes of context / basis switches.
         Note that this makes a recomputation of all the simhashes stored in db / cdb neccessary.
         '''
-        if self.n < 30:
+        if not DEBUG and self.n < 30:
             self.compress_pos = [[0]*6 for i in range(XPC_BIT_LEN)]
             return
 
@@ -67,15 +67,10 @@ class SimHashes:
     def compress(self, v):
         '''
         Compute the compressed representation of an entry.
-        Since it is a function of the normalized GSO coos, we pass the yr - coos.
         '''
 
-        # Compute the compressed representation of an entry
-        # compress(std::array<LFT,MAX_SIEVING_DIM> const &v) const
-
-        # ATOMIC_CPUCOUNT(260);
-        c = [0]
-        if n < 30:
+        c = []
+        if not DEBUG and self.n < 30:
             return c
 
         for j in range(XPC_WORD_LEN):
@@ -90,56 +85,45 @@ class SimHashes:
                 a -= v[self.compress_pos[k][4]]
                 a -= v[self.compress_pos[k][5]]
 
-                c_tmp <<= 1
+                c_tmp >>= 1 # todo
                 if a > 0:
                     c_tmp |= a
-            c[j] = c_tmp
+
+            c.append(c_tmp) # todo: % self.n   ?
         return c
 
 
-def binary_search(v, t, v_len):
+def search_range(v, t, v_len):
     '''
     O(2 log n)
+    https://stackoverflow.com/questions/30794533/how-to-do-a-binary-search-for-a-range-of-the-same-value
     '''
-    pos1, pos2 = None, None
+    if t < v[0] or t > v[-1]:
+        return None, None
+
+    r = 0
+    h = v_len
+    while r < h:
+        m = (r + h) // 2
+        if t < v[m]:
+            h = m
+        else:
+            r = m + 1
 
     l = 0
-    r = v_len - 1
-
-    while r > l:
-        m = ceil((l + r) / 2)
-        print(l, m, r)
-
-        if v[m] == t:
-            l = m
-            break
-
-        if v[m] >= t:
-            r = m - 1
-        else:
+    h = r - 1
+    while l < h:
+        m = (l + h) // 2
+        if t > v[m]:
             l = m + 1
-
-    l_pos = l
-
-    l = 0
-    r = v_len - 1
-
-    while r > l:
-        m = ceil((l + r) / 2)
-        print(l, m, r)
-
-        if v[m] == t:
-            l = m
-            break
-
-        if v[m] > t:
-            r = m - 1
         else:
-            l = m + 1
+            h = m
 
-    r_pos = l
+    # todo: optimize for cases when t not in v
+    if t not in v[l:r]:
+        return None, None
 
-    return l_pos, r_pos
+    return l, r
 
 
 def search(V1, v_hash, d):
@@ -148,36 +132,48 @@ def search(V1, v_hash, d):
     V1_slice = V1
     V1_len = len(V1)
     for i in range(XPC_WORD_LEN - 1):
-        row1, row2 = binary_search(V1_slice[:, i], v_hash[i], V1_len)
+        row1, row2 = search_range(V1_slice[:, i], v_hash[i], V1_len)
 
         if not row1 and not row2:
             return
-        V1_slice = V1_slice[row1:row2, :]
-        V1_len = row - row1
 
-        if w[i] != v[i]:
-            continue
+        V1_slice = V1_slice[row1:row2, :]
+        V1_len = row2 - row1
+
+        # if w[i] != v[i]:
+        #     continue
 
     # search closest
 
-    return
+    closest_w, miv_v_dist = None, inf
+    for w in V1_slice:
+        dist = abs(v_hash[XPC_WORD_LEN - 1] - w[XPC_WORD_LEN - 1])
+        if dist < d and dist < miv_v_dist:
+            closest_w, miv_v_dist = w, dist
+
+    return closest_w
 
 
-def closest_pairs(V1, V2, n, step=1):
+def closest_pairs(V1, V2, n, d):
     '''
     Searches for close pairs in sets V1 and V2
     '''
     SH = SimHashes(n)
 
-    V1 = np.array(np.array([v] + SH.compress(v)) for v in V1)
-    V1 = sorted(V1, key=lambda x: x[1])
+    V1 = np.array([np.array(SH.compress(v) + v) for v in V1])
+
+    # sorting by multiple columns tests:
+    # https://stackoverflow.com/questions/2706605/sorting-a-2d-numpy-array-by-multiple-axes
+    V1 = V1[np.lexsort([V1[:,i] for i in range(XPC_WORD_LEN, -1, -1)])]
+
+    # print(V1[:,0:XPC_WORD_LEN])
 
     for v in V2:
         v_hash = SH.compress(v)
 
-        close_vecs = search(V1, v_hash, d, len_V1)
-        if close_vecs:
-            return (v, close_vecs)
+        close_vec = search(V1, v_hash, d)
+        if close_vec is not None: # todo
+            return ((v, v_hash), (close_vec[XPC_WORD_LEN:], close_vec[:XPC_WORD_LEN]))
 
 
 def test1():
@@ -196,13 +192,61 @@ def test2():
 
 
 def test3():
-    V = [0, 1, 2, 4, 5, 5, 5, 5, 6, 7, 7, 9]
+    V = [1, 1, 2, 4, 4, 5, 6, 6, 7, 7, 9]
     n = len(V)
-    print(binary_search(V, 5, n))
+    print(search_range(V, 3, n))
+
+
+def test4():
+    n = 7
+    V1 = np.array([np.array([np.random.randint(n) for _ in range(n)]) for _ in range(10)])
+    print(V1)
+    V1 = V1[np.lexsort([V1[:,i] for i in range(XPC_WORD_LEN, -1, -1)])]
+    print(V1)
+
+def test5():
+    global DEBUG
+    DEBUG = True
+
+    n = 7
+    # n = 31
+    d = 10
+
+    np.random.seed(1337)
+
+    V1 = [[np.random.randint(n) for _ in range(n)] for _ in range(100)]
+    V2 = [[np.random.randint(n) for _ in range(n)] for _ in range(100)]
+    print(closest_pairs(V1, V2, n, d))
+
+    V1 = [[np.random.randint(n) for _ in range(n)] for _ in range(1000)]
+    V2 = [[np.random.randint(n) for _ in range(n)] for _ in range(1000)]
+    print(closest_pairs(V1, V2, n, d))
+
+    V1 = [[np.random.randint(n) for _ in range(n)] for _ in range(10000)]
+    V2 = [[np.random.randint(n) for _ in range(n)] for _ in range(10000)]
+    print(closest_pairs(V1, V2, n, d))
+
+    np.random.seed(1336)
+
+    V1 = [[np.random.randint(n) for _ in range(n)] for _ in range(100)]
+    V2 = [[np.random.randint(n) for _ in range(n)] for _ in range(100)]
+    print(closest_pairs(V1, V2, n, d))
+
+    V1 = [[np.random.randint(n) for _ in range(n)] for _ in range(1000)]
+    V2 = [[np.random.randint(n) for _ in range(n)] for _ in range(1000)]
+    print(closest_pairs(V1, V2, n, d))
+
+    V1 = [[np.random.randint(n) for _ in range(n)] for _ in range(10000)]
+    V2 = [[np.random.randint(n) for _ in range(n)] for _ in range(10000)]
+    print(closest_pairs(V1, V2, n, d))
+
+    V1 = [[np.random.randint(n) for _ in range(n)] for _ in range(100000)]
+    V2 = [[np.random.randint(n) for _ in range(n)] for _ in range(100000)]
+    print(closest_pairs(V1, V2, n, d))
 
 
 def main():
-    test3()
+    test5()
 
 
 if __name__ == '__main__':
