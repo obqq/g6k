@@ -65,10 +65,10 @@ def all_rotations(g, variable_x, q):
 
 def gen_ntru_challenge(n):
 
-	K = CyclotomicField(n)
+	K = CyclotomicField(2*n)
 
 	P = Primes()
-	q = next_prime(45*n)
+	q = next_prime(25*n)
 
 
 	F = GF(q)
@@ -76,10 +76,9 @@ def gen_ntru_challenge(n):
 	Fx_qou = Fx.quotient(K.polynomial(), 'x')
 	variable_x = Fx_qou.gen()
 
-	n1 = int(n/2)
-	sparsity = ceil(n1/3.)
-	f_poly = (gen_small(sparsity, n1))
-	g_poly = (gen_small(sparsity, n1))
+	sparsity = ceil(n/3.)
+	f_poly = (gen_small(sparsity, n))
+	g_poly = (gen_small(sparsity, n))
 	h = Fx_qou(f_poly)/Fx_qou(g_poly)
 
 	rotations = all_rotations(Fx_qou(g_poly),variable_x,q)
@@ -93,24 +92,24 @@ def gen_ntru_challenge(n):
 
 
 	qvec = vector(ZZ,g_poly)*Hmat - vector(f_poly)
-	assert(len(qvec) == n/2)
+	assert(len(qvec) == n)
 	#print("qvec:", qvec)
-	qvec_red = [0]*int(n/2)
-	for i in range(n1):
+	qvec_red = [0]*int(n)
+	for i in range(n):
 		assert qvec_red[i] % q == 0
 		qvec_red[i]  = -qvec[i] / q
 	#print("qvec_red:", qvec_red)
-	B = matrix(ZZ, 2*n1, 2*n1)
+	B = matrix(ZZ, 2*n, 2*n)
 
-	for i in range(n1):
+	for i in range(n):
 		B[i,i] = 1
-		for j in range(n1):
-			B[i,n1+j] = Hmat[i, j]
-		B[i+n1, i+n1] = q
+		for j in range(n):
+			B[i,n+j] = Hmat[i, j]
+		B[i+n, i+n] = q
 	#print("B:")
 	#print(B)
 	f_check = vector(list(g_poly) + list(qvec))*B
-	f_check = vector(ZZ, [f_check[i] for i in range(2*n1)])
+	f_check = vector(ZZ, [f_check[i] for i in range(2*n)])
 	#print(g_poly, f_poly)
 	#print(f_check[:n1])
 
@@ -137,5 +136,5 @@ def gen_ntru_challenge(n):
 
 
 if __name__ == '__main__':
-	n = 256
-	gen_ntru_challenge(256)
+	n = 64
+	gen_ntru_challenge(64)

@@ -146,26 +146,27 @@ def sievig0292(dim):
 	return dim*log(sqrt(3./2))/log(2.)
 
 def sievig0349(dim):
-	return dim*0.349
+	return dim*0.349 + 16
 
-def find_beta(n, q, nrows, svp_alg = sievig0292):
+def find_beta(n, q, nsamples, svp_alg = sievig0349):
 	rt_min = 10000 #infinity TODO: try float("inf")
-	nsamples_opt = nrows
+	nsamples_opt = nsamples
 	beta_opt = 10000 #infinity
-	for nsamples in range( int(nrows/2), nrows, 5):
-		dim = n+nsamples
-		for beta in range(15, dim, 5):
+	for nsample in range( int(nsamples/2), nsamples, 5):
+		dim = n+nsample
+		for beta in range(46, dim, 2):
 			if svp_alg(beta)>=rt_min:
 				break
 			#print('find_beta:', n, q, beta, nsamples)
-			GSA, i, j = getGSA(n, q, beta, nsamples)
+			GSA, i, j = getGSA(n, q, beta, nsample)
 			#print(GSA)
-			if exp(GSA[dim-beta]) > sqrt(2.0/3.0 * beta): #2/3 is the error sparsity (assume the error is uniform from {+-1, 0}
+			if exp(GSA[dim-beta]) > sqrt(2.0/3.0 * beta + 1): #2/3 is the error sparsity (assume the error is uniform from {+-1, 0}
 				beta_opt = beta
-				nsamples_opt = nsamples
+				nsamples_opt = nsample
 				rt_min = svp_alg(beta_opt)
-				print('find_beta', beta_opt, nsamples_opt, rt_min)
+				GSA_min = GSA
+				#print('find_beta', beta_opt, nsamples_opt, rt_min)
 				break
 
 
-	return beta_opt, nsamples_opt, rt_min
+	return beta_opt, nsamples_opt, rt_min, GSA_min

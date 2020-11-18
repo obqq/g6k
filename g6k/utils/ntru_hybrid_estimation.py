@@ -63,46 +63,47 @@ def plain_hybrid_compleixty(paramset, verbose = False):
 	w = paramset['w']
 
 
-	best_rt = float("inf")
-	best_g = 2
-	best_prep = float("inf")
-	best_beta = n
+	best_g = 0
+	best_nsamples = 0
+	best_beta, best_nsamples, best_prep, GSA = find_beta(n, q, n)
+	best_rt = 2**best_prep
 
-	for g in range(2, int(n/2)):
-		beta, nsamples, prep_rt = find_beta(n-g, q, n) #g determines beta
+	for g in range(4, int(n/2)):
+		beta, nsamples, prep_rt, GSA = find_beta(n-g, q, n) #g determines beta
 		w_scaled = (float(w*g) / n) # assume the weight is uniformly distributed over s
 		S = multinom(g, [ceil(w_scaled/3.), ceil(w_scaled/3.), g - 2.*ceil(w_scaled/3.)]) # number of CVP batches
 		#print('g:', g, beta, w_scaled, S)
 		rt_CVP = S*BabaiRT(n)
 		rt_log = max(prep_rt, log(rt_CVP, 2)) # not precise
-		print(prep_rt, log(rt_CVP, 2))
+		#print(prep_rt, log(rt_CVP, 2))
 		rt = 2**(prep_rt) + rt_CVP
 		if rt < best_rt:
 			best_g = g
 			best_rt = rt
 			best_rt_log = rt_log
 			best_beta = beta
+			best_nsamples = nsamples
 			if verbose:
 				print('rt_log:', best_rt_log, 'beta:', beta,'g:', g)
-	return best_beta, best_g, log(best_rt,2)
+	return best_beta, best_g, log(best_rt,2), GSA, nsamples
 
 
 
-def ntru_plain_hybrid_basis(A, g, q):
+def ntru_plain_hybrid_basis(A, g, q, nsamples):
 	"""
 		Construct ntru lattice basis
 	"""
 	n = A.ncols
 	ell = n - g
-	B = IntegerMatrix((n+ell), (n+ell))
+	B = IntegerMatrix((nsamples+ell), (nsamples+ell))
 	Bg = IntegerMatrix(g, n)
 
 
 	for i in range(ell):
 		B[i,i] = 1
-		for j in range(n):
+		for j in range(nsamples):
 			B[i,j+ell] = A[i, j]
-	for i in range(n):
+	for i in range(nsamples):
 		B[i+ell, i+ell] = q
 
 	for i in range(g):
