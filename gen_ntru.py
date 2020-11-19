@@ -1,7 +1,7 @@
 
 
 from sage.all import *
-
+from fpylll import IntegerMatrix
 
 def gen_small(s, n):
 	"""
@@ -68,7 +68,7 @@ def gen_ntru_challenge(n):
 	K = CyclotomicField(2*n)
 
 	P = Primes()
-	q = next_prime(25*n)
+	q = next_prime(55*n)
 
 
 	F = GF(q)
@@ -81,7 +81,7 @@ def gen_ntru_challenge(n):
 	g_poly = (gen_small(sparsity, n))
 	h = Fx_qou(f_poly)/Fx_qou(g_poly)
 
-	rotations = all_rotations(Fx_qou(g_poly),variable_x,q)
+	rotations = all_rotations(Fx_qou(f_poly),variable_x,q)
 
 	#print('g*h', Fx_qou(g_poly)*h)
 
@@ -99,32 +99,38 @@ def gen_ntru_challenge(n):
 		assert qvec_red[i] % q == 0
 		qvec_red[i]  = -qvec[i] / q
 	#print("qvec_red:", qvec_red)
-	B = matrix(ZZ, 2*n, 2*n)
+	B = matrix(ZZ, 2*n, n)
 
 	for i in range(n):
-		B[i,i] = 1
 		for j in range(n):
-			B[i,n+j] = Hmat[i, j]
-		B[i+n, i+n] = q
+			B[i,j] = Hmat[i, j]
+		B[i+n, i] = q
 	#print("B:")
 	#print(B)
-	f_check = vector(list(g_poly) + list(qvec))*B
-	f_check = vector(ZZ, [f_check[i] for i in range(2*n)])
-	#print(g_poly, f_poly)
-	#print(f_check[:n1])
+	f_check = vector(list(g_poly) + list(qvec_red))*B
+	f_check = vector(ZZ, [f_check[i] for i in range(n)])
+	assert(f_check==vector(f_poly))
+	print(norm(f_check))
 
 
-	"""
+#	"""
 	B = B.LLL()
-	b0 = B[0][:n1]
+	assert(B[:n] == matrix(ZZ,n, n))
+	#print("B")
+	#print(B)
+	b0 = B[n]
 	print('b0:', b0, norm(b0))
 
+	B = B[n:]
+	print(B)
+	Bred =  B.BKZ(block_size=5, proof=False)
+	print(Bred[0], norm(Bred[0]))
 
 	for i in range(len(rotations)):
 		if vector(b0) == vector(rotations[i]):
 			print(i, rotations[i])
 			break
-	"""
+#	"""
 	filename = 'ntru_n_'+str(n)+'_solution.txt'
 	f = open(filename, 'w')
 	f.write(str(list(f_poly))+'\n')
@@ -133,8 +139,29 @@ def gen_ntru_challenge(n):
 
 	return h, q
 
+def gen_lwe_challenge(n,q):
+
+	Amat = IntegerMatrix.random(n, "uniform", bits=floor(log(q,2)))
+	A = matrix(ZZ,[Amat[i] for i in range(Amat.nrows)])
+	w = int(n/3.)
+	s = vector(ZZ,gen_small(w,n))
+
+	e = vector(ZZ,gen_small(w,n))
+	b = s*A + e
+	b = vector([b[i]%q for i in range(n)])
+
+	filename = 'lwe_n'+str(n)+'.txt'
+	f = open(filename, 'w')
+	f.write(str(q)+'\n')
+	for i in range(A.nrows()):
+		f.write( str(A[i]).replace(',','') +'\n')
+	f.write(str(b).replace(',',''))
+	f.close()
 
 
 if __name__ == '__main__':
-	n = 256
-	gen_ntru_challenge(256)
+	n = 128
+	gen_ntru_challenge(n)
+	#n = 64
+	#q = 4201
+	#gen_lwe_challenge(n,q)

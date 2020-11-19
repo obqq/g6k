@@ -36,7 +36,6 @@ def getGSA(q, nqs, nbasis, beta):
 	zone2 = [log_q + i * slope for i in range(1, zone2_length+1)]
 	zone3 = nbasis*[0]
 	GSA = zone1+zone2+zone3
-
 	lattice_vol =nqs*log_q
 	current_vol = sum([GSA[i] for i in range(d)])
 
@@ -82,13 +81,14 @@ def find_beta(n, q, nsamples, svp_alg = sievig0349):
 	for b in range(40, n+nsamples, 2):
 		if svp_alg(b) > rt_min:
 			break
-		for m in range(max(b-n, int(nsamples/3.)), nsamples, 5):
-			GSA, i, j  = getGSA(q, m, n, b)
-			if exp(GSA[m+n-b]) > sqrt(2.0/3.0 * b) and svp_alg(b) < rt_min:
-				rt_min = svp_alg(b)
-				nsamples_opt = m
-				beta_opt = b
-				GSA_opt = GSA
+		#for m in range(max(b-n, int(nsamples/2.)), nsamples, 5):
+		m = nsamples
+		GSA, i, j  = getGSA(q, m, n, b)
+		if exp(GSA[m+n-b]) > sqrt(2.0/3.0 * b)+1 and svp_alg(b) < rt_min:
+			rt_min = svp_alg(b)
+			nsamples_opt = m
+			beta_opt = b
+			GSA_opt = GSA
 	"""
 	for nsample in range( int(nsamples/3.), nsamples, 5):
 		dim = n+nsample

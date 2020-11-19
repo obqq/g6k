@@ -13,36 +13,10 @@ from g6k.utils.ntru_hybrid_estimation import plain_hybrid_compleixty, ntru_plain
 from g6k.utils.ntru_gsa import find_beta
 
 from random import randrange
-from sage.all import *
+from math import floor, log, ceil
 
 
 
-def gen_small(s, n):
-	"""
-	s+1 entries of 1s and s entries of -1s
-	"""
-	deg = n
-	coeff_vector = deg*[0]
-	coeff_vector[deg-1] = 1
-	coeff_vector[0] = 1
-	index_set = set({0,deg-1})
-	for i in range(s-2):
-	# add 1's
-		while True:
-			index1 = randrange(1,deg-1)
-			if not index1 in index_set:
-				coeff_vector[index1] = 1
-				index_set = index_set.union({index1})
-				break
-	# add -1's
-	for i in range(s):
-		while True:
-			index2 = randrange(1,deg-1)
-			if not index2 in index_set:
-				coeff_vector[index2] = -1
-				index_set = index_set.union({index2})
-				break
-	return coeff_vector
 
 def primal_lattice_basis(A, c, q, m=None):
 	"""
@@ -64,39 +38,40 @@ def primal_lattice_basis(A, c, q, m=None):
 	B = IntegerMatrix(m+n+1, m+1)
 	for i in range(m):
 		for j in range(n):
-			B[j, i] = A[i, j]
+			B[j, i] = A[j, i]
 		B[i+n, i] = q
 		B[-1, i] = c[i]
 	B[-1, -1] = 1
-
+	#print("B:")
+	#print(B)
 	B = LLL.reduction(B)
 	assert(B[:n] == IntegerMatrix(n, m+1))
 	B = B[n:]
 	return B
 
-def test_ntru_gsa(n, q):
+def test_ntru_gsa(n):
 
-	Amat = IntegerMatrix.random(n, "uniform", bits=floor(log(q,2)))
-	A = matrix(ZZ,[Amat[i] for i in range(Amat.nrows)])
-	w = int(n/3.)
-	s = vector(ZZ,gen_small(w,n))
+	# read from file
+	filename = 'lwe_n'+str(n)+'.txt'
+	data = open(filename, 'r').readlines()
+	q = int(data[0])
+	B = eval(",".join([s_.replace('\n','').replace(" ", ", ") for s_ in data[1:n+1]]))
+	B = IntegerMatrix.from_matrix(B)
+	c = eval(data[n+1].replace(" ", ','))
 
-	e = vector(ZZ,gen_small(w,n))
-	b = A*s + e
-	b = vector([b[i]%q for i in range(n)])
-
-	#Basis = primal_lattice_basis(Amat, b, q, n)
 	beta, nsamples, prep_rt, GSA = find_beta(n, q, n)
+	print('beta, nsamples:', beta, nsamples)
 	print('GSA predicted:')
 	print(GSA)
 
 	print('beta, nsamples: ', beta, nsamples)
-	Basis = primal_lattice_basis(Amat, b, q, nsamples)
-	print(Basis)
+	Basis = primal_lattice_basis(B, c, q, nsamples)
+
 	g6k = Siever(Basis)
 
 	d = g6k.full_n
 	g6k.lll(0, g6k.full_n)
+	print(g6k.MatGSO)
 	slope = basis_quality(g6k.M)["/"]
 	print("Intial Slope = %.5f\n" % slope)
 
@@ -106,9 +81,34 @@ def test_ntru_gsa(n, q):
 	print('d:', d)
 	target_norm = ceil( (2./3)*d + 1) + 1
 	print("target_norm:", target_norm)
+	#
+	#   Preprocessing
+	#
+	if beta < 50:
+		print("Starting a fpylll BKZ-%d tour. " % (beta))
+		sys.stdout.flush()
+		bkz = BKZReduction(g6k.M)
+		par = fplll_bkz.Param(beta,
+							  strategies=fplll_bkz.DEFAULT_STRATEGY,
+							  max_loops=1)
+		bkz(par)
+
+	else:
+		print("Starting a pnjBKZ-%d tour. " % (beta))
+		pump_n_jump_bkz_tour(g6k, tracer, beta, jump=jump,
+								 verbose=verbose,
+								 extra_dim4free=extra_dim4free,
+								 dim4free_fun=dim4free_fun,
+								 goal_r0=target_norm,
+								 pump_params=pump_params)
+
+			#T_BKZ = time.time() - T0_BKZ
+
+	print('GSA output:')
+	print([g6k.M.get_r(i, i) for i in range(d)])
 
 	return 1
 
-n = 120
-q = 4201
-test_ntru_gsa(n,q)
+def 
+n = 128
+test_ntru_gsa(n)

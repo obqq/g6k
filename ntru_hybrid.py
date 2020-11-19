@@ -182,14 +182,13 @@ def ntru_kernel(arg0, params=None, seed=None):
     print('GSA predicted:')
     print([exp(GSA[i]) for i in range(len(GSA))])
 
-    B, Bg = ntru_plain_hybrid_basis(H, g, q, nsamples)
+    B, Bg = ntru_plain_hybrid_basis(H, g, q, n)
 
 
     #blocksizes = list(range(10, 50)) + [beta-20, beta-17] + list(range(beta - 14, beta + 25, 2))
     #print("blocksizes:", blocksizes)
 
     g6k = Siever(B, params)
-    print("GSO precision: ", g6k.M.float_type)
 
     if dont_trace:
         tracer = dummy_tracer
@@ -208,39 +207,36 @@ def ntru_kernel(arg0, params=None, seed=None):
     print('d:', d)
     target_norm = ceil( (2./3)*d + 1) + 1
     print("target_norm:", target_norm)
-    beta = 50
+    #beta = 50
     #
     #   Preprocessing
     #
     if beta < fpylll_crossover:
-        if verbose:
-            print("Starting a fpylll BKZ-%d tour. " % (beta), end=' ')
-            sys.stdout.flush()
-            bkz = BKZReduction(g6k.M)
-            par = fplll_bkz.Param(beta,
-                                  strategies=fplll_bkz.DEFAULT_STRATEGY,
-                                  max_loops=1)
-            bkz(par)
+        print("Starting a fpylll BKZ-%d tour. " % (beta), end=' ')
+        sys.stdout.flush()
+        bkz = BKZReduction(g6k.M)
+        par = fplll_bkz.Param(beta,
+                              strategies=fplll_bkz.DEFAULT_STRATEGY,
+                              max_loops=1)
+        bkz(par)
 
     else:
-        if verbose:
-            print("Starting a pnjBKZ-%d tour. " % (beta))
-            pump_n_jump_bkz_tour(g6k, tracer, beta, jump=jump,
-                                     verbose=verbose,
-                                     extra_dim4free=extra_dim4free,
-                                     dim4free_fun=dim4free_fun,
-                                     goal_r0=target_norm,
-                                     pump_params=pump_params)
+        print("Starting a pnjBKZ-%d tour. " % (beta))
+        pump_n_jump_bkz_tour(g6k, tracer, beta, jump=jump,
+                                 verbose=verbose,
+                                 extra_dim4free=extra_dim4free,
+                                 dim4free_fun=dim4free_fun,
+                                 goal_r0=target_norm,
+                                 pump_params=pump_params)
 
             #T_BKZ = time.time() - T0_BKZ
 
     print('GSA output:')
     print([g6k.M.get_r(i, i) for i in range(d)])
     #print(g6k.M.get_r(0, 0))
-
+    print(g6k.M.B[0], g6k.M.get_r(0,0))
     if g == 0:
         if(g6k.M.get_r(0, 0) <= target_norm):
-            print(g6k.M.B[0])
             return g6k.M.B[0]
         else:
             raise ValueError("No solution found.")

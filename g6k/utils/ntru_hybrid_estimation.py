@@ -97,23 +97,23 @@ def ntru_plain_hybrid_basis(A, g, q, nsamples):
 	n = A.ncols
 	ell = n - g
 	print(n, ell, nsamples)
-	B = IntegerMatrix((nsamples+ell), (nsamples+ell))
+	B = IntegerMatrix((nsamples+ell), (ell))
 	Bg = IntegerMatrix(g, n)
 
 
 	for i in range(ell):
-		B[i,i] = 1
 		for j in range(nsamples):
-			B[i,j+ell] = A[i, j]
+			B[i,j] = A[i, j]
 	for i in range(nsamples):
-		B[i+ell, i+ell] = q
+		B[i+ell, i] = q
 
 	for i in range(g):
 		for j in range(n):
 			Bg[i,j] = A[i+ell, j]
 
 	B = LLL.reduction(B)
-
+	assert(B[:ell] == IntegerMatrix(ell, nsamples))
+	B = B[ell:]
 	return B, Bg
 
 def sim_params(n, alpha):
