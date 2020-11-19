@@ -78,8 +78,8 @@ def find_beta(n, q, nsamples, svp_alg = sievig0349):
 	nsamples_opt = nsamples
 	beta_opt = 10000
 	GSA_opt = []
-	"""
-	for b in range(20, n+nsamples, 2):
+	#"""
+	for b in range(40, n+nsamples, 2):
 		if svp_alg(b) > rt_min:
 			break
 		for m in range(max(b-n, int(nsamples/3.)), nsamples, 5):
@@ -103,4 +103,5 @@ def find_beta(n, q, nsamples, svp_alg = sievig0349):
 				GSA_opt = GSA
 				#print('find_beta', beta_opt, nsamples_opt, rt_min)
 				break
+	"""
 	return beta_opt, nsamples_opt, rt_min, GSA_opt

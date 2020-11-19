@@ -208,7 +208,7 @@ def ntru_kernel(arg0, params=None, seed=None):
     print('d:', d)
     target_norm = ceil( (2./3)*d + 1) + 1
     print("target_norm:", target_norm)
-
+    beta = 50
     #
     #   Preprocessing
     #
@@ -232,7 +232,7 @@ def ntru_kernel(arg0, params=None, seed=None):
                                      goal_r0=target_norm,
                                      pump_params=pump_params)
 
-            T_BKZ = time.time() - T0_BKZ
+            #T_BKZ = time.time() - T0_BKZ
 
     print('GSA output:')
     print([g6k.M.get_r(i, i) for i in range(d)])
