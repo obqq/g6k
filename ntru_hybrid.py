@@ -34,15 +34,12 @@ from g6k.utils.lwe_estimation import gsa_params, primal_lattice_basis
 from six.moves import range
 
 from g6k.utils.ntru_hybrid_estimation import plain_hybrid_compleixty, ntru_plain_hybrid_basis
-<<<<<<< HEAD
 from g6k.utils.ntru_gsa import find_beta
-=======
 
 NTRU_BASEDIR = 'ntru_challenge'
 
 def read_ntru_from_file(n):
     file_path = os.path.join(NTRU_BASEDIR, f'ntru_n_{n}.txt')
->>>>>>> simhash script added
 
     if not os.path.isfile(file_path):
         raise ValueError (f'File {file_path} not found!')
@@ -180,18 +177,11 @@ def ntru_kernel(arg0, params=None, seed=None):
     w = 2*(n/3.)
     paramset_NTRU1 = {'n': n, 'q': q, 'w': w}
     print(paramset_NTRU1)
-<<<<<<< HEAD
     beta, g, rt, nsamples, GSA = plain_hybrid_compleixty(paramset_NTRU1, verbose = True)
     #print('beta, g, rt, nsamples:', beta, g, rt, nsamples)
 
     # if g is too small to help, recompute BKZ params
-    if g<=4:
-=======
-    beta, g, rt = plain_hybrid_compleixty(paramset_NTRU1, verbose = True)
-    print('beta, g, rt:', beta, g, rt)
-
-    if g < 4:
->>>>>>> simhash script added
+    if g <= 4:
         g = 0
         beta, nsamples,rt, GSA = find_beta(n, q, n)
 
@@ -201,12 +191,6 @@ def ntru_kernel(arg0, params=None, seed=None):
 
     B, Bg = ntru_plain_hybrid_basis(H, g, q, n)
 
-<<<<<<< HEAD
-=======
-    print('beta, g, rt:', beta, g, rt)
-    B, Bg = ntru_plain_hybrid_basis(A, g, q)
-    print(params)
->>>>>>> simhash script added
 
     # blocksizes = list(range(10, 50)) + [beta-20, beta-17] + list(range(beta - 14, beta + 25, 2))
     # print("blocksizes:", blocksizes)
@@ -264,8 +248,6 @@ def ntru_kernel(arg0, params=None, seed=None):
         else:
             raise ValueError("No solution found.")
 
-<<<<<<< HEAD
-=======
     n = A.ncols
     ell = n - g
     Al = A.submatrix(0, 0, l, n)
@@ -277,12 +259,11 @@ def ntru_kernel(arg0, params=None, seed=None):
     #
 
     L1, L2 = construct_lists(Al, w)
->>>>>>> simhash script added
 
     #
     # BDD Queries
     #
-    
+
     #target = -s*B
     target = [0]*n
     for pos1, pos2 in kbits(g, ceil(g*2./3)):
@@ -295,9 +276,6 @@ def ntru_kernel(arg0, params=None, seed=None):
             s[i] = -1
             target += Bg[i]
         print(target)
-<<<<<<< HEAD
-#    """
-=======
 
     #from simhash import closest_pairs
 
@@ -305,7 +283,6 @@ def ntru_kernel(arg0, params=None, seed=None):
     # V2
 
 
->>>>>>> simhash script added
     raise ValueError("No solution found.")
 
 def ntru(n=2):

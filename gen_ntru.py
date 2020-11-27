@@ -1,15 +1,11 @@
 import os
 import sys
 from sage.all import *
-
-
-<<<<<<< HEAD
-from sage.all import *
 from fpylll import IntegerMatrix
-=======
+
+
 NTRU_BASEDIR = 'ntru_challenge'
 
->>>>>>> simhash script added
 
 def gen_small(s, n):
 	"""
@@ -120,8 +116,6 @@ def gen_ntru_challenge(n):
 	assert(f_check==vector(f_poly))
 	print(norm(f_check))
 
-
-#	"""
 	B = B.LLL()
 	assert(B[:n] == matrix(ZZ,n, n))
 	#print("B")
@@ -138,15 +132,9 @@ def gen_ntru_challenge(n):
 		if vector(b0) == vector(rotations[i]):
 			print(i, rotations[i])
 			break
-<<<<<<< HEAD
-#	"""
-	filename = 'ntru_n_'+str(n)+'_solution.txt'
-	f = open(filename, 'w')
-=======
-	"""
+
 	file_path = os.path.join(NTRU_BASEDIR, 'ntru_n_' + str(n) + '_solution.txt')
 	f = open(file_path, 'w')
->>>>>>> simhash script added
 	f.write(str(list(f_poly))+'\n')
 	f.write(str(list(g_poly)))
 	f.close()
@@ -173,17 +161,16 @@ def gen_lwe_challenge(n,q):
 	f.close()
 
 def main():
-	_, n = sys.argv
-	print(n)
-	gen_ntru_challenge(int(n))
+	# _, n = sys.argv
+	# print(n)
+	# gen_ntru_challenge(int(n))
+
+	# n = 128
+	# gen_ntru_challenge(n)
+
+	n = 64
+	q = 4201
+	gen_lwe_challenge(n,q)
 
 if __name__ == '__main__':
-<<<<<<< HEAD
-	n = 128
-	gen_ntru_challenge(n)
-	#n = 64
-	#q = 4201
-	#gen_lwe_challenge(n,q)
-=======
 	main()
->>>>>>> simhash script added

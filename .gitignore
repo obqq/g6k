@@ -9,6 +9,7 @@
 
 /g6k/siever.cpp
 /g6k/siever_params.cpp
+/ntru_challenge/*
 /svpchallenge/*
 /g6k-fplll
 /g6k-fpylll
@@ -16,4 +17,5 @@
 /activate
 /build/
 /dist/
+/logs/
 /G6K.egg-info/
