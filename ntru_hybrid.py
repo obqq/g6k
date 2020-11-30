@@ -19,6 +19,8 @@ from math import log, ceil, floor, exp
 
 import numpy as np
 
+import numpy as np
+
 from fpylll import GSO, IntegerMatrix, BKZ as fplll_bkz
 from fpylll.algorithms.bkz2 import BKZReduction
 from fpylll.tools.quality import basis_quality
