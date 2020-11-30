@@ -19,7 +19,7 @@ from math import log, ceil, floor, exp
 
 import numpy as np
 
-from fpylll import CVP, GSO, IntegerMatrix, BKZ as fplll_bkz
+from fpylll import GSO, IntegerMatrix, BKZ as fplll_bkz
 from fpylll.algorithms.bkz2 import BKZReduction
 from fpylll.tools.quality import basis_quality
 from fpylll.util import gaussian_heuristic
@@ -42,6 +42,7 @@ from simhash import closest_pairs
 NTRU_BASEDIR = 'ntru_challenge'
 LWE_BASEDIR = 'lwe_challenge'
 
+NTRU_BASEDIR = 'ntru_challenge'
 
 def read_ntru_from_file(n):
     file_path = os.path.join(NTRU_BASEDIR, f'ntru_n_{n}.txt')
@@ -336,67 +337,65 @@ def ntru_kernel(arg0, params=None, seed=None):
     # fails for g = 0 (n = 32, 64)
     B, Ag = ntru_plain_hybrid_basis(A, g, q, nsamples)
 
-
-
     # blocksizes = list(range(10, 50)) + [beta-20, beta-17] + list(range(beta - 14, beta + 25, 2))
     # print("blocksizes:", blocksizes)
 
-    # g6k = Siever(B, params)
-    #
-    # if dont_trace:
-    #     tracer = dummy_tracer
-    # else:
-    #     tracer = SieveTreeTracer(g6k, root_label=("ntru"), start_clocks=True)
-    #
-    # d = g6k.full_n
-    # g6k.lll(0, g6k.full_n)
-    # print(g6k.MatGSO)
-    # slope = basis_quality(g6k.M)["/"]
-    # print("Intial Slope = %.5f\n" % slope)
-    #
-    # print('GSA input:')
-    # print([g6k.M.get_r(i, i) for i in range(d)])
-    #
-    # print('d:', d)
-    # target_norm = ceil( (2./3)*d + 1) + 1
-    # print("target_norm:", target_norm)
-    #
-    # # beta = 50
-    # #
-    # #   Preprocessing
-    # #
-    # if beta < fpylll_crossover:
-    #     print("Starting a fpylll BKZ-%d tour. " % (beta), end=' ')
-    #     sys.stdout.flush()
-    #     bkz = BKZReduction(g6k.M)
-    #     par = fplll_bkz.Param(beta,
-    #                           strategies=fplll_bkz.DEFAULT_STRATEGY,
-    #                           max_loops=1)
-    #     bkz(par)
-    #
-    # else:
-    #     print("Starting a pnjBKZ-%d tour. " % (beta))
-    #     pump_n_jump_bkz_tour(g6k, tracer, beta, jump=jump,
-    #                              verbose=verbose,
-    #                              extra_dim4free=extra_dim4free,
-    #                              dim4free_fun=dim4free_fun,
-    #                              goal_r0=target_norm,
-    #                              pump_params=pump_params)
-    #
-    #         #T_BKZ = time.time() - T0_BKZ
-    #
-    # print('GSA output:')
-    # print([g6k.M.get_r(i, i) for i in range(d)])
-    # #print(g6k.M.get_r(0, 0))
-    # print(g6k.M.B[0], g6k.M.get_r(0,0))
+    g6k = Siever(B, params)
 
-    # if g == 0:
-    #     if(g6k.M.get_r(0, 0) <= target_norm):
-    #         return g6k.M.B[0]
-    #     else:
-    #         raise ValueError("No solution found.")
+    if dont_trace:
+        tracer = dummy_tracer
+    else:
+        tracer = SieveTreeTracer(g6k, root_label=("ntru"), start_clocks=True)
 
-    # print(g6k.M.B, B)
+    d = g6k.full_n
+    g6k.lll(0, g6k.full_n)
+    print(g6k.MatGSO)
+    slope = basis_quality(g6k.M)["/"]
+    print("Intial Slope = %.5f\n" % slope)
+
+    print('GSA input:')
+    print([g6k.M.get_r(i, i) for i in range(d)])
+
+    print('d:', d)
+    target_norm = ceil( (2./3)*d + 1) + 1
+    print("target_norm:", target_norm)
+
+    # beta = 50
+    #
+    #   Preprocessing
+    #
+    if beta < fpylll_crossover:
+        print("Starting a fpylll BKZ-%d tour. " % (beta), end=' ')
+        sys.stdout.flush()
+        bkz = BKZReduction(g6k.M)
+        par = fplll_bkz.Param(beta,
+                              strategies=fplll_bkz.DEFAULT_STRATEGY,
+                              max_loops=1)
+        bkz(par)
+
+    else:
+        print("Starting a pnjBKZ-%d tour. " % (beta))
+        pump_n_jump_bkz_tour(g6k, tracer, beta, jump=jump,
+                                 verbose=verbose,
+                                 extra_dim4free=extra_dim4free,
+                                 dim4free_fun=dim4free_fun,
+                                 goal_r0=target_norm,
+                                 pump_params=pump_params)
+
+            #T_BKZ = time.time() - T0_BKZ
+
+    print('GSA output:')
+    print([g6k.M.get_r(i, i) for i in range(d)])
+    #print(g6k.M.get_r(0, 0))
+    print(g6k.M.B[0], g6k.M.get_r(0,0))
+
+    if g == 0:
+        if(g6k.M.get_r(0, 0) <= target_norm):
+            return g6k.M.B[0]
+        else:
+            raise ValueError("No solution found.")
+
+    print(g6k.M.B, B)
 
 
     n = A.ncols
@@ -426,7 +425,6 @@ def ntru_kernel(arg0, params=None, seed=None):
 
     raise ValueError("No solution found.")
 
-
 def ntru(n=2):
     """
     Attempt to solve an lwe challenge.
@@ -434,41 +432,41 @@ def ntru(n=2):
     """
     description = ntru.__doc__
 
-    # ntru_kernel(n, params={'ntru__m': None,
-    #           'lwe/goal_margin': 1.5,
-    #           'lwe/svp_bkz_time_factor': 1,
-    #           'bkz/blocksizes': None,
-    #           'bkz/tours': 1,
-    #           'bkz/jump': 1,
-    #           'bkz/extra_dim4free': 12,
-    #           'bkz/fpylll_crossover': 51,
-    #           'bkz/dim4free_fun': "default_dim4free_fun",
-    #           'pump__down_sieve': True,
-    #           'dummy_tracer': True,  # set to control memory
-    #           'verbose': True})
+    ntru_kernel(n, params={'ntru__m': None,
+              'lwe/goal_margin': 1.5,
+              'lwe/svp_bkz_time_factor': 1,
+              'bkz/blocksizes': None,
+              'bkz/tours': 1,
+              'bkz/jump': 1,
+              'bkz/extra_dim4free': 12,
+              'bkz/fpylll_crossover': 51,
+              'bkz/dim4free_fun': "default_dim4free_fun",
+              'pump__down_sieve': True,
+              'dummy_tracer': True,  # set to control memory
+              'verbose': True})
 
-    args, all_params = parse_args(description,
-                                  ntru__m=None,
-                                  lwe__goal_margin=1.5,
-                                  lwe__svp_bkz_time_factor=1,
-                                  bkz__blocksizes=None,
-                                  bkz__tours=1,
-                                  bkz__jump=1,
-                                  bkz__extra_dim4free=12,
-                                  bkz__fpylll_crossover=51,
-                                  bkz__dim4free_fun="default_dim4free_fun",
-                                  pump__down_sieve=True,
-                                  dummy_tracer=True,  # set to control memory
-                                  verbose=True
-                                  )
-
-    stats = run_all(ntru_kernel, list(all_params.values()), # noqa
-                    lower_bound=args.lower_bound,
-                    upper_bound=args.upper_bound,
-                    step_size=args.step_size,
-                    trials=args.trials,
-                    workers=args.workers,
-                    seed=args.seed)
+    # args, all_params = parse_args(description,
+    #                               ntru__m=None,
+    #                               lwe__goal_margin=1.5,
+    #                               lwe__svp_bkz_time_factor=1,
+    #                               bkz__blocksizes=None,
+    #                               bkz__tours=1,
+    #                               bkz__jump=1,
+    #                               bkz__extra_dim4free=12,
+    #                               bkz__fpylll_crossover=51,
+    #                               bkz__dim4free_fun="default_dim4free_fun",
+    #                               pump__down_sieve=True,
+    #                               dummy_tracer=True,  # set to control memory
+    #                               verbose=True
+    #                               )
+    #
+    # stats = run_all(ntru_kernel, list(all_params.values()), # noqa
+    #                 lower_bound=args.lower_bound,
+    #                 upper_bound=args.upper_bound,
+    #                 step_size=args.step_size,
+    #                 trials=args.trials,
+    #                 workers=args.workers,
+    #                 seed=args.seed)
 
 
 def main():
