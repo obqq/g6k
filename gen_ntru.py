@@ -5,6 +5,7 @@ from fpylll import IntegerMatrix
 
 
 NTRU_BASEDIR = 'ntru_challenge'
+LWE_BASEDIR = 'lwe_challenge'
 
 
 def gen_small(s, n):
@@ -35,7 +36,6 @@ def gen_small(s, n):
 	return coeff_vector
 
 
-
 def print_ntru(q, h, variable_x, filename):
 	n = len(list(h))
 	f = open(filename, 'w')
@@ -52,6 +52,7 @@ def print_ntru(q, h, variable_x, filename):
 
 	return HMat
 
+
 def all_rotations(g, variable_x, q):
 	n = len(list(g))
 	rotations = [0]*(2*n)
@@ -66,6 +67,7 @@ def all_rotations(g, variable_x, q):
 				rotations[2*i+1][j] = -1
 		i +=1
 	return rotations
+
 
 def gen_ntru_challenge(n):
 
@@ -141,8 +143,8 @@ def gen_ntru_challenge(n):
 
 	return h, q
 
-def gen_lwe_challenge(n,q):
 
+def gen_lwe_challenge(n, q):
 	Amat = IntegerMatrix.random(n, "uniform", bits=floor(log(q,2)))
 	A = matrix(ZZ,[Amat[i] for i in range(Amat.nrows)])
 	w = int(n/3.)
@@ -152,13 +154,18 @@ def gen_lwe_challenge(n,q):
 	b = s*A + e
 	b = vector([b[i]%q for i in range(n)])
 
-	filename = 'lwe_n'+str(n)+'.txt'
-	f = open(filename, 'w')
+	file_path = os.path.join(LWE_BASEDIR, 'lwe_n_' + str(n) + '.txt')
+
+	f = open(file_path, 'w')
 	f.write(str(q)+'\n')
 	for i in range(A.nrows()):
-		f.write( str(A[i]).replace(',','') +'\n')
-	f.write(str(b).replace(',',''))
+		f.write(str(A[i]).replace(',','') + '\n')
+	f.write(str(b).replace(',','') + '\n')
+	f.write(str(s).replace(',','') + '\n')
 	f.close()
+
+	print(q, b)
+
 
 def main():
 	# _, n = sys.argv
@@ -168,9 +175,10 @@ def main():
 	# n = 128
 	# gen_ntru_challenge(n)
 
-	n = 64
+	# n = 64
+	_, n = sys.argv
 	q = 4201
-	gen_lwe_challenge(n,q)
+	gen_lwe_challenge(int(n), q)
 
 if __name__ == '__main__':
 	main()

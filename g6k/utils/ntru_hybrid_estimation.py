@@ -18,6 +18,7 @@ from g6k.utils.ntru_gsa import find_beta
 from math import sqrt, pi, e, log, floor, exp, ceil
 import scipy.special
 
+
 def log_gh_svp(d, delta_bkz, svp_dim, n, q):
 	"""
 	Calculates the log of the Gaussian heuristic of the context in which
@@ -44,6 +45,7 @@ def log_gh_svp(d, delta_bkz, svp_dim, n, q):
 	vol_part = ((1./d)*(d-n-1)*log(q))+((svp_dim-d)*log(delta_bkz))
 	return ball_part + vol_part
 
+
 def multinom(n, c):
 	assert sum(c) == n, 'bad input to multinom!'
 	res = 1
@@ -53,10 +55,12 @@ def multinom(n, c):
 		n_ = n_ - c[i]
 	return res
 
+
 def BabaiRT(n):
 	return n**3
 
-def plain_hybrid_compleixty(paramset, verbose = False):
+
+def plain_hybrid_complexity(paramset, verbose = False):
 
 	q = paramset['q']
 	n = paramset['n']
@@ -89,7 +93,6 @@ def plain_hybrid_compleixty(paramset, verbose = False):
 	return best_beta, best_g, log(best_rt,2), best_nsamples, best_GSA
 
 
-
 def ntru_plain_hybrid_basis(A, g, q, nsamples):
 	"""
 		Construct ntru lattice basis
@@ -97,24 +100,24 @@ def ntru_plain_hybrid_basis(A, g, q, nsamples):
 	n = A.ncols
 	ell = n - g
 	print(n, ell, nsamples)
-	B = IntegerMatrix((nsamples+ell), (ell))
-	Bg = IntegerMatrix(g, n)
+	B = IntegerMatrix(ell, nsamples + ell)
+	Bg = IntegerMatrix(n, g)
 
-
-	for i in range(ell):
-		for j in range(nsamples):
-			B[i,j] = A[i, j]
 	for i in range(nsamples):
-		B[i+ell, i] = q
+		for j in range(ell):
+			B[i, j] = A[i, j]
+	for i in range(nsamples):
+		B[i, i + ell] = q
 
-	for i in range(g):
-		for j in range(n):
-			Bg[i,j] = A[i+ell, j]
+	for i in range(n):
+		for j in range(g):
+			Bg[i, j] = A[i, j + ell]
 
 	B = LLL.reduction(B)
-	assert(B[:ell] == IntegerMatrix(ell, nsamples))
-	B = B[ell:]
+	# assert(B[:ell] == IntegerMatrix(ell, nsamples))
+	# B = B[ell:]
 	return B, Bg
+
 
 def sim_params(n, alpha):
 	A, c, q = load_lwe_challenge(n, alpha)
