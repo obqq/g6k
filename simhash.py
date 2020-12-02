@@ -154,7 +154,7 @@ def search(V1, v_hash, d):
     return closest_w
 
 
-def closest_pairs(V1, V2, n, d):
+def closest_pairs(V1, V2, n, q, d):
     '''
     Searches for close pairs in sets V1 and V2
     '''
@@ -173,7 +173,8 @@ def closest_pairs(V1, V2, n, d):
 
         close_vec = search(V1, v_hash, d)
         if close_vec is not None: # todo
-            return ((v, v_hash), (close_vec[XPC_WORD_LEN:], close_vec[:XPC_WORD_LEN]))
+            print((v, v_hash), (close_vec[XPC_WORD_LEN:], close_vec[:XPC_WORD_LEN]))
+            return close_vec[XPC_WORD_LEN:]
 
 
 def test1():
@@ -205,6 +206,10 @@ def test4():
     print(V1)
 
 def test5():
+    from fpylll import CVP
+
+    # todo: tests with builtin CVP
+
     global DEBUG
     DEBUG = True
 
@@ -226,23 +231,27 @@ def test5():
     V2 = [[np.random.randint(n) for _ in range(n)] for _ in range(10000)]
     print(closest_pairs(V1, V2, n, d))
 
-    np.random.seed(1336)
+    # np.random.seed(1336)
+    #
+    # V1 = [[np.random.randint(n) for _ in range(n)] for _ in range(100)]
+    # V2 = [[np.random.randint(n) for _ in range(n)] for _ in range(100)]
+    # print(closest_pairs(V1, V2, n, d))
+    #
+    # V1 = [[np.random.randint(n) for _ in range(n)] for _ in range(1000)]
+    # V2 = [[np.random.randint(n) for _ in range(n)] for _ in range(1000)]
+    # print(closest_pairs(V1, V2, n, d))
+    #
+    # V1 = [[np.random.randint(n) for _ in range(n)] for _ in range(10000)]
+    # V2 = [[np.random.randint(n) for _ in range(n)] for _ in range(10000)]
+    # print(closest_pairs(V1, V2, n, d))
+    #
+    # V1 = [[np.random.randint(n) for _ in range(n)] for _ in range(100000)]
+    # V2 = [[np.random.randint(n) for _ in range(n)] for _ in range(100000)]
+    # print(closest_pairs(V1, V2, n, d))
+    #
 
-    V1 = [[np.random.randint(n) for _ in range(n)] for _ in range(100)]
-    V2 = [[np.random.randint(n) for _ in range(n)] for _ in range(100)]
-    print(closest_pairs(V1, V2, n, d))
 
-    V1 = [[np.random.randint(n) for _ in range(n)] for _ in range(1000)]
-    V2 = [[np.random.randint(n) for _ in range(n)] for _ in range(1000)]
-    print(closest_pairs(V1, V2, n, d))
 
-    V1 = [[np.random.randint(n) for _ in range(n)] for _ in range(10000)]
-    V2 = [[np.random.randint(n) for _ in range(n)] for _ in range(10000)]
-    print(closest_pairs(V1, V2, n, d))
-
-    V1 = [[np.random.randint(n) for _ in range(n)] for _ in range(100000)]
-    V2 = [[np.random.randint(n) for _ in range(n)] for _ in range(100000)]
-    print(closest_pairs(V1, V2, n, d))
 
 
 def main():

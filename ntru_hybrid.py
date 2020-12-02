@@ -7,10 +7,10 @@ NTRU
 
 from __future__ import absolute_import
 from __future__ import print_function
-import copy
 import re
 import sys
 import time
+import copy
 
 import os.path
 
@@ -110,6 +110,7 @@ def kbits(n, k):
     assert 2*k <= n
     full_range = range(n)
 
+    # todo: add for all possible number of -1, 0, 1,
     for pos1 in combinations(full_range, k):
         # remove pos1 from the range of pos2
         new_range = []
@@ -123,120 +124,93 @@ def kbits(n, k):
             yield pos1, pos2
 
 
-
-# todo: which one to use
-
-def construct_lists(Al, b, ell):
-    '''
-    Input (A, b)
-    Constucts lists L1 & L2 s.t. ...
-    '''
-    L1 = []
-    L2 = []
-
-    b = copy.copy(b)
-    b.transpose()
-
-    print(Al.ncols, Al.nrows, ell)
-
-    for pos1, pos2 in kbits(ell, ceil(ell / 3)):
-        s = [0] * ell
-        for i in pos1:
-            s[i] = 1
-        for i in pos2:
-            s[i] = -1
-
-
-        s1 = s[:ell//2]
-        s2 = s[ell//2:]
-
-        print(s1, s2)
-
-        s = IntegerMatrix.from_matrix([s])
-        s.transpose()
-
-        Al_s = Al * s
-        # print(Al_s)
-
-        print(b.ncols, b.nrows, Al_s.nrows)
-
-        res = b[0]
-
-        res -= Al_s[0]
-
-        print(b_)
-
-        # L1.append((Al_s, s1))
-        # L2.append((res, s2))
-
-        break
-
-    return L1, L2
-
-
-def construct_lists2(Al, b, ell):
-    '''
-    Input (A, b)
-    Constucts lists L1 & L2 s.t. ...
-    '''
-    L1 = []
-    L2 = []
-
-    print(Al.ncols, Al.nrows, ell)
-
-    for pos1, pos2 in kbits(ell, ceil(ell / 3)):
-        s = [0] * ell
-        for i in pos1:
-            s[i] = 1
-        for i in pos2:
-            s[i] = -1
-
-
-        s1 = s[:ell//2]
-        s2 = s[ell//2:]
-
-        print(s)
-
-        s = IntegerMatrix.from_matrix([s])
-        s.transpose()
-        print(Al * s)
-
-
-        # L1.append((Al * s1, s1))
-        # L2.append((b - Al * s2, s2))
-
-        break
-
-    return L1, L2
-
-
-
-def bdd_query(Ag, b, g, beta):
+def bdd_query(B, Ag, b, g, q, Al):
     '''
     Batch-CVP (BDD) with preprocessing, or (batch-CVPP).
     Using Babai's Nearest Plane
     '''
 
-    # target = b - s*B
-    target = [0]*n
-    for pos1, pos2 in kbits(g, ceil(g*2./3)):
+    # # target = b - s*B
+    # target = [0]*n
+    # for pos1, pos2 in kbits(g, ceil(g*2./3)):
+    #     s = [0] * g
+    #     for i in pos1:
+    #         s[i] = 1
+    #         target -= Bg[i]
+    #     for i in pos2:
+    #         assert s[i] == 0
+    #         s[i] = -1
+    #         target += Bg[i]
+    #     print(target)
+
+    V1 = []
+    V2 = []
+
+    b = copy.copy(b)
+    b.transpose()
+
+    M = GSO.Mat(Al) # B
+    M.update_gso()
+
+    # print(B)
+    # print(B.nrows, B.ncols)
+
+    # len = 1681680
+    k = 0
+    poss = kbits(g, ceil(g / 3))
+    all_pos = len(list(poss))
+    for pos1, pos2 in kbits(g, ceil(g / 3)):
+        if k % 10000 == 0:
+            print(k, all_pos - k)
+        k += 1
+
         s = [0] * g
         for i in pos1:
             s[i] = 1
-            target -= Bg[i]
         for i in pos2:
-            assert s[i] == 0
             s[i] = -1
-            target += Bg[i]
-        print(target)
+
+        s1 = IntegerMatrix.from_matrix([s[:g // 2] + [0] * (g // 2)])
+        s1.transpose()
+
+        s2 = IntegerMatrix.from_matrix([[0] * (g // 2) + s[g // 2:]])
+        s2.transpose()
+
+        # print(s1)
+        # print()
+        # print(s2)
+        #
+        # print(Ag.nrows, Ag.ncols, g)
+
+        target1 = IntegerMatrix.from_matrix(Ag * s1)
+        target1.transpose()
+
+        target2 = Ag * s2
+
+        b_ = copy.copy(b)
+        b_[0] -= target2[0]
+
+        target2 = IntegerMatrix.from_matrix(b_)
+        target2.transpose()
+
+        target1.mod(q)
+        target2.mod(q)
+        # print(target1)
+
+        v1 = M.babai(list(target1[0]))
+        # print(v1)
+        # s2 =
+
+        # print(target2)
+        v2 = M.babai(list(target2[0]))
+        # print(v2)
+
+        V1.append(list(v1))
+        V2.append(list(v2))
 
     # CVP.closest_vector(A, target)
 
-    # M = GSO.Mat(Ag)
-    # M.update_gso()
-    # s = M.babai(target)
-
-    return s
+    return V1, V2
 
 
 def ntru_kernel(arg0, params=None, seed=None):
@@ -314,6 +288,7 @@ def ntru_kernel(arg0, params=None, seed=None):
     # A, q = read_ntru_from_file(n)
     A, b, s, q = read_lwe_from_file(n)
 
+
     print("Hybrid attack on NTRU n=%d" % n)
 
 
@@ -330,14 +305,15 @@ def ntru_kernel(arg0, params=None, seed=None):
         beta, nsamples,rt, GSA = find_beta(n, q, n)
 
     print(n, n//2)
-    g = nsamples = n // 2
+    nsamples = n // 2
+    g = 12
 
     print('beta, g, rt, nsamples:', beta, g, rt, nsamples)
     print('GSA predicted:')
     print([exp(GSA[i]) for i in range(len(GSA))])
 
     # fails for g = 0 (n = 32, 64)
-    B, Ag = ntru_plain_hybrid_basis(A, g, q, nsamples)
+    B, Al, Ag = ntru_plain_hybrid_basis(A, g, q, nsamples)
 
     # blocksizes = list(range(10, 50)) + [beta-20, beta-17] + list(range(beta - 14, beta + 25, 2))
     # print("blocksizes:", blocksizes)
@@ -404,7 +380,6 @@ def ntru_kernel(arg0, params=None, seed=None):
     ell = n - g
     print(n, g, ell)
     # todo: coeffs like in ntru_plain_hybrid_basis
-    Al = A.submatrix(0, 0, n, ell)
 
     print(A)
     print()
@@ -414,61 +389,50 @@ def ntru_kernel(arg0, params=None, seed=None):
 
     # print(A[:g] == Al, A[g:] == Ag)
 
-    L1, L2 = construct_lists(Al, b, g)
-
-
     # BDD Queries
 
-    # V1 = bdd_query(B, L1)
-    # V2 = bdd_query(B, L2)
+    V1, V2 = bdd_query(B, Ag, b, g, q, Al)
 
-    # closest_pairs(V1, V2, n, d=10)
+    print(len(V1), len(V2))
+
+    s_ = closest_pairs(V1, V2, n, q, d=10)
+    print(s_)
+
+    
+    if s_ is None:
+        raise ValueError("No solution found.")
 
 
-    raise ValueError("No solution found.")
-
-def ntru(n=2):
+def ntru(n):
     """
     Attempt to solve an lwe challenge.
 
     """
     description = ntru.__doc__
 
-    ntru_kernel(n, params={'ntru__m': None,
-              'lwe/goal_margin': 1.5,
-              'lwe/svp_bkz_time_factor': 1,
-              'bkz/blocksizes': None,
-              'bkz/tours': 1,
-              'bkz/jump': 1,
-              'bkz/extra_dim4free': 12,
-              'bkz/fpylll_crossover': 51,
-              'bkz/dim4free_fun': "default_dim4free_fun",
-              'pump__down_sieve': True,
-              'dummy_tracer': True,  # set to control memory
-              'verbose': True})
 
-    # args, all_params = parse_args(description,
-    #                               ntru__m=None,
-    #                               lwe__goal_margin=1.5,
-    #                               lwe__svp_bkz_time_factor=1,
-    #                               bkz__blocksizes=None,
-    #                               bkz__tours=1,
-    #                               bkz__jump=1,
-    #                               bkz__extra_dim4free=12,
-    #                               bkz__fpylll_crossover=51,
-    #                               bkz__dim4free_fun="default_dim4free_fun",
-    #                               pump__down_sieve=True,
-    #                               dummy_tracer=True,  # set to control memory
-    #                               verbose=True
-    #                               )
-    #
-    # stats = run_all(ntru_kernel, list(all_params.values()), # noqa
-    #                 lower_bound=args.lower_bound,
-    #                 upper_bound=args.upper_bound,
-    #                 step_size=args.step_size,
-    #                 trials=args.trials,
-    #                 workers=args.workers,
-    #                 seed=args.seed)
+    args, all_params = parse_args(description,
+                                  ntru__m=None,
+                                  lwe__goal_margin=1.5,
+                                  lwe__svp_bkz_time_factor=1,
+                                  bkz__blocksizes=None,
+                                  bkz__tours=1,
+                                  bkz__jump=1,
+                                  bkz__extra_dim4free=12,
+                                  bkz__fpylll_crossover=51,
+                                  bkz__dim4free_fun="default_dim4free_fun",
+                                  pump__down_sieve=True,
+                                  dummy_tracer=True,  # set to control memory
+                                  verbose=True
+                                  )
+
+    stats = run_all(ntru_kernel, list(all_params.values()), # noqa
+                    lower_bound=args.lower_bound,
+                    upper_bound=args.upper_bound,
+                    step_size=args.step_size,
+                    trials=args.trials,
+                    workers=args.workers,
+                    seed=args.seed)
 
 
 def main():
