@@ -101,34 +101,26 @@ def ntru_plain_hybrid_basis(A, g, q, nsamples):
 	ell = n - g
 	print(n, ell, nsamples)
 	B = IntegerMatrix(nsamples + ell, nsamples + ell)
-	Al = IntegerMatrix(n, ell)
-	Ag = IntegerMatrix(n, g)
 
-	for i in range(ell):
-		B[i,i] = 1
-		for j in range(nsamples):
-			B[i, nsamples + j] = A[i, j]
+	for i in range(nsamples):
+		B[i, i] = 1
+		for j in range(ell):
+			B[i, n + j] = A[i, j]
 
 	for i in range(nsamples):
 		B[i, i] = q
 
-	for i in range(nsamples):
-		B[i + ell, i + ell] = 1
+	for i in range(ell):
+		B[i + nsamples, i + nsamples] = 1
 
-	for i in range(n):
-		for j in range(ell):
-			Al[i, j] = A[i, j]
-
-	for i in range(n):
-		for j in range(g):
-			Ag[i, j] = A[i, j + ell]
+	Al = B.submatrix(0, nsamples, nsamples, nsamples + ell)
+	Ag = A.submatrix(0, ell, nsamples, nsamples)
 
 	print('B:')
 	print(B)
 
 	B = LLL.reduction(B)
-	# assert(B[:ell] == IntegerMatrix(ell, nsamples))
-	# B = B[ell:]
+
 	return B, Al, Ag
 
 

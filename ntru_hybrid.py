@@ -38,13 +38,12 @@ from six.moves import range
 from g6k.utils.ntru_hybrid_estimation import plain_hybrid_complexity, ntru_plain_hybrid_basis
 from g6k.utils.ntru_gsa import find_beta
 
-from simhash import closest_pairs
+from simhash import SimHashes, search, XPC_WORD_LEN
 
 
 NTRU_BASEDIR = 'ntru_challenge'
 LWE_BASEDIR = 'lwe_challenge'
 
-NTRU_BASEDIR = 'ntru_challenge'
 
 def read_ntru_from_file(n):
     file_path = os.path.join(NTRU_BASEDIR, f'ntru_n_{n}.txt')
@@ -124,7 +123,7 @@ def kbits(n, k):
             yield pos1, pos2
 
 
-def bdd_query(B, Ag, b, g, q, Al):
+def bdd_query(B, Ag, b, g, n, q, d=1000):
     '''
     Batch-CVP (BDD) with preprocessing, or (batch-CVPP).
     Using Babai's Nearest Plane
@@ -142,6 +141,7 @@ def bdd_query(B, Ag, b, g, q, Al):
     #         s[i] = -1
     #         target += Bg[i]
     #     print(target)
+    ell = n - g
 
     V1 = []
     V2 = []
@@ -149,11 +149,11 @@ def bdd_query(B, Ag, b, g, q, Al):
     b = copy.copy(b)
     b.transpose()
 
-    M = GSO.Mat(Al) # B
+    M = GSO.Mat(B) # B
     M.update_gso()
 
     # print(B)
-    # print(B.nrows, B.ncols)
+    print(B.nrows, B.ncols)
 
     # len = 1681680
     k = 0
@@ -170,47 +170,56 @@ def bdd_query(B, Ag, b, g, q, Al):
         for i in pos2:
             s[i] = -1
 
-        s1 = IntegerMatrix.from_matrix([s[:g // 2] + [0] * (g // 2)])
-        s1.transpose()
+        s1 = IntegerMatrix.from_iterable(g, 1, s[:g // 2] + [0] * (g // 2))
+        # print(s1, s2)
 
-        s2 = IntegerMatrix.from_matrix([[0] * (g // 2) + s[g // 2:]])
-        s2.transpose()
+        target = Ag * s1
+        target.transpose()
+        target.mod(q)
+        target = [0] * ell + list(target[0])
+        # print(target)
 
-        # print(s1)
-        # print()
-        # print(s2)
-        #
-        # print(Ag.nrows, Ag.ncols, g)
-
-        target1 = IntegerMatrix.from_matrix(Ag * s1)
-        target1.transpose()
-
-        target2 = Ag * s2
-
-        b_ = copy.copy(b)
-        b_[0] -= target2[0]
-
-        target2 = IntegerMatrix.from_matrix(b_)
-        target2.transpose()
-
-        target1.mod(q)
-        target2.mod(q)
-        # print(target1)
-
-        v1 = M.babai(list(target1[0]))
+        v1 = M.babai(target)
         # print(v1)
-        # s2 =
 
-        # print(target2)
-        v2 = M.babai(list(target2[0]))
-        # print(v2)
-
+        # V1.append((list(v1), s[:g // 2]))
         V1.append(list(v1))
-        V2.append(list(v2))
+        V2.append(s[g // 2:])
 
-    # CVP.closest_vector(A, target)
 
-    return V1, V2
+    # Closest Pairs
+
+    # todo: remake so that we could store initial vector s1 in list V1
+
+    print(V1)
+    SH = SimHashes(n + ell)
+
+    V1 = np.array([np.array(SH.compress(v) + v) for v in V1])
+
+    # sorting by multiple columns tests:
+    # https://stackoverflow.com/questions/2706605/sorting-a-2d-numpy-array-by-multiple-axes
+    V1 = V1[np.lexsort([V1[:,i] for i in range(XPC_WORD_LEN, -1, -1)])]
+
+    # print(V1[:,0:XPC_WORD_LEN])
+
+    for s2 in V2:
+        s2_ = IntegerMatrix.from_iterable(g, 1, s[g // 2:] + [0] * (g // 2))
+        target = Ag * s2_
+        b_ = copy.copy(b)
+        b_[0] -= target[0]
+        target = IntegerMatrix.from_matrix(b_)
+        target.transpose()
+        target.mod(q)
+        target = [0] * ell + list(target[0])
+
+        v2 = M.babai(target)
+
+        v2_hash = SH.compress(v2)
+
+        close_vec = search(V1, v2_hash, d)
+        if close_vec is not None: # todo
+            print((v2, v2_hash), (close_vec[XPC_WORD_LEN:], close_vec[:XPC_WORD_LEN]))
+            return close_vec[XPC_WORD_LEN:]
 
 
 def ntru_kernel(arg0, params=None, seed=None):
@@ -304,8 +313,6 @@ def ntru_kernel(arg0, params=None, seed=None):
         g = 0
         beta, nsamples,rt, GSA = find_beta(n, q, n)
 
-    print(n, n//2)
-    nsamples = n // 2
     g = 12
 
     print('beta, g, rt, nsamples:', beta, g, rt, nsamples)
@@ -387,18 +394,14 @@ def ntru_kernel(arg0, params=None, seed=None):
     print()
     print(Ag)
 
-    # print(A[:g] == Al, A[g:] == Ag)
-
     # BDD Queries
 
-    V1, V2 = bdd_query(B, Ag, b, g, q, Al)
+    s_ = bdd_query(B, Ag, b, g, n, q)
 
-    print(len(V1), len(V2))
-
-    s_ = closest_pairs(V1, V2, n, q, d=10)
     print(s_)
 
-    
+    # s_ = closest_pairs(V1, V2, n, q, d=10)
+
     if s_ is None:
         raise ValueError("No solution found.")
 
