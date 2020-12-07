@@ -14,7 +14,7 @@ class SimHashes:
     This class stores the hash function we use to compute simhashes and allows to compute a simhash for a given point.
     '''
 
-    def __init__(self, n, sim_hash_rng=None):
+    def __init__(self, n, seed=None):
         '''
         constructs a SimHashes objects and stores the seed used to set future hash functions.
         Note that reset_compress_pos must be called at least once before compress is used.
@@ -24,8 +24,10 @@ class SimHashes:
         self.n = n #  Dimension of the entries on which we compute SimHashes.
         self.compress_pos = [] # Indices to chose for compression / SimHashes
 
-        self.sim_hash_rng = sim_hash_rng #  // we use our own rng, seeded during construction.
-                    # (This is to make simhash selection less random in multithreading and to actually simplify some internal code)
+        self.seed = seed
+
+        # self.sim_hash_rng = sim_hash_rng #  // we use our own rng, seeded during construction.
+        #             # (This is to make simhash selection less random in multithreading and to actually simplify some internal code)
 
         self.reset_compress_pos()
 
@@ -45,8 +47,8 @@ class SimHashes:
 
         file = open(file_path, 'r')
 
-        if self.sim_hash_rng:
-            np.random.seed(seed)
+        if self.seed:
+            np.random.seed(self.seed)
 
         # Create random permutation of {0,..,n-1}
         permut = list(range(0, self.n))

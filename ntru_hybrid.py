@@ -130,7 +130,7 @@ def bdd_query(B, Ag, b, g, n, q, d=1000):
     Batch-CVP (BDD) with preprocessing, or (batch-CVPP).
     Using Babai's Nearest Plane
     '''
-    SH = SimHashes(n)
+    SH = SimHashes(n, seed=1337)
 
     ell = n - g
 
@@ -174,7 +174,7 @@ def bdd_query(B, Ag, b, g, n, q, d=1000):
     # Closest Pairs
 
     # V1 = np.array([np.array(SH.compress(v) + v) for v in V1])
-    V1 = np.array([np.array(SH.compress(v) + s) for v, s in V1])
+    V1 = np.array([np.array(SH.compress(v) + v + s) for v, s in V1])
 
     # sorting by multiple columns tests:
     # https://stackoverflow.com/questions/2706605/sorting-a-2d-numpy-array-by-multiple-axes
@@ -202,16 +202,17 @@ def bdd_query(B, Ag, b, g, n, q, d=1000):
         v2 = M.babai(target)
 
         # Search:
-        # print(v2)
 
         v2_hash = SH.compress(v2)
-        # close_vec = search(V1, v2_hash, d=10000)
-        # if close_vec is not None: # todo
-        #     print(i)
-        #     print(s2, close_vec[XPC_WORD_LEN:])
-        #     # print((v2, v2_hash), (close_vec[XPC_WORD_LEN:], close_vec[:XPC_WORD_LEN]))
-        #     # s = s2 + close_vec[:XPC_WORD_LEN]
-        #     return s2
+        close_vec = search(V1, v2_hash, d=10000)
+        if close_vec is not None: # todo
+            print(i)
+            v1, v1_hash, s1 = close_vec[XPC_WORD_LEN:-(g // 2)], close_vec[:XPC_WORD_LEN], close_vec[-(g // 2):]
+            print(v1, v1_hash, s1)
+            print(v2, v2_hash, s2)
+            # print((v2, v2_hash), (close_vec[XPC_WORD_LEN:], close_vec[:XPC_WORD_LEN]))
+            sg = list(s1) + list(s1)
+            return sg
 
 
 def ntru_kernel(arg0, params=None, seed=None):
@@ -393,10 +394,10 @@ def ntru_kernel(arg0, params=None, seed=None):
     # check = b - e - sg * Ag
 
     print(s)
-    # print(s_)
-    #
-    # if s_ is None:
-    #     raise ValueError("No solution found.")
+    print(sg)
+
+    if sg is None:
+        raise ValueError("No solution found.")
 
 
 def ntru(n):
