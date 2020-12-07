@@ -130,11 +130,7 @@ def bdd_query(B, Ag, b, g, n, q, d=1000):
     Batch-CVP (BDD) with preprocessing, or (batch-CVPP).
     Using Babai's Nearest Plane
     '''
-<<<<<<< HEAD
     SH = SimHashes(n, seed=1337)
-=======
-    SH = SimHashes(n)
->>>>>>> b4ee63636e3570f9ca4027b34e4a2471843588b7
 
     ell = n - g
 
@@ -178,11 +174,7 @@ def bdd_query(B, Ag, b, g, n, q, d=1000):
     # Closest Pairs
 
     # V1 = np.array([np.array(SH.compress(v) + v) for v in V1])
-<<<<<<< HEAD
     V1 = np.array([np.array(SH.compress(v) + v + s) for v, s in V1])
-=======
-    V1 = np.array([np.array(SH.compress(v) + s) for v, s in V1])
->>>>>>> b4ee63636e3570f9ca4027b34e4a2471843588b7
 
     # sorting by multiple columns tests:
     # https://stackoverflow.com/questions/2706605/sorting-a-2d-numpy-array-by-multiple-axes
@@ -210,7 +202,6 @@ def bdd_query(B, Ag, b, g, n, q, d=1000):
         v2 = M.babai(target)
 
         # Search:
-<<<<<<< HEAD
 
         v2_hash = SH.compress(v2)
         close_vec = search(V1, v2_hash, d=10000)
@@ -222,18 +213,6 @@ def bdd_query(B, Ag, b, g, n, q, d=1000):
             # print((v2, v2_hash), (close_vec[XPC_WORD_LEN:], close_vec[:XPC_WORD_LEN]))
             sg = list(s1) + list(s1)
             return sg
-=======
-        # print(v2)
-
-        v2_hash = SH.compress(v2)
-        # close_vec = search(V1, v2_hash, d=10000)
-        # if close_vec is not None: # todo
-        #     print(i)
-        #     print(s2, close_vec[XPC_WORD_LEN:])
-        #     # print((v2, v2_hash), (close_vec[XPC_WORD_LEN:], close_vec[:XPC_WORD_LEN]))
-        #     # s = s2 + close_vec[:XPC_WORD_LEN]
-        #     return s2
->>>>>>> b4ee63636e3570f9ca4027b34e4a2471843588b7
 
 
 def ntru_kernel(arg0, params=None, seed=None):
@@ -411,7 +390,6 @@ def ntru_kernel(arg0, params=None, seed=None):
     # BDD Queries
 
     sg = bdd_query(B, Ag, b, g, n, q)
-<<<<<<< HEAD
 
     # check = b - e - sg * Ag
 
@@ -420,16 +398,6 @@ def ntru_kernel(arg0, params=None, seed=None):
 
     if sg is None:
         raise ValueError("No solution found.")
-=======
-
-    # check = b - e - sg * Ag
-
-    print(s)
-    # print(s_)
-    #
-    # if s_ is None:
-    #     raise ValueError("No solution found.")
->>>>>>> b4ee63636e3570f9ca4027b34e4a2471843588b7
 
 
 def ntru(n):
