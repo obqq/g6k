@@ -162,9 +162,8 @@ def gen_lwe_challenge(n, q):
 		f.write(str(A[i]).replace(',','') + '\n')
 	f.write(str(b).replace(',','') + '\n')
 	f.write(str(s).replace(',','') + '\n')
+	f.write(str(e).replace(',','') + '\n')
 	f.close()
-
-	print(q, b)
 
 
 def main():
