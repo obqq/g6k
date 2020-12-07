@@ -66,13 +66,15 @@ def read_lwe_from_file(n):
 
     data = open(file_path, "r").readlines()
     q = int(data[0])
-    A = eval(",".join([s_.replace('\n','').replace(" ", ", ") for s_ in data[1:-2]]))
+    A = eval(",".join([s_.replace('\n','').replace(" ", ", ") for s_ in data[1:-3]]))
     A = IntegerMatrix.from_matrix(A)
-    b = eval(",".join([s_.replace('\n','').replace(" ", ", ") for s_ in data[-2:-1]]))
+    b = eval(",".join([s_.replace('\n','').replace(" ", ", ") for s_ in data[-3:-2]]))
     b = IntegerMatrix.from_matrix([b])
-    s = eval(",".join([s_.replace('\n','').replace(" ", ", ") for s_ in data[-1:]]))
+    s = eval(",".join([s_.replace('\n','').replace(" ", ", ") for s_ in data[-2:-1]]))
     s = IntegerMatrix.from_matrix([s])
-    return A, b, s, q
+    e = eval(",".join([s_.replace('\n','').replace(" ", ", ") for s_ in data[-1:]]))
+    e = IntegerMatrix.from_matrix([e])
+    return A, b, s, e, q
 
 
 def combinations(iterable, r):
@@ -128,19 +130,8 @@ def bdd_query(B, Ag, b, g, n, q, d=1000):
     Batch-CVP (BDD) with preprocessing, or (batch-CVPP).
     Using Babai's Nearest Plane
     '''
+    SH = SimHashes(n)
 
-    # # target = b - s*B
-    # target = [0]*n
-    # for pos1, pos2 in kbits(g, ceil(g*2./3)):
-    #     s = [0] * g
-    #     for i in pos1:
-    #         s[i] = 1
-    #         target -= Bg[i]
-    #     for i in pos2:
-    #         assert s[i] == 0
-    #         s[i] = -1
-    #         target += Bg[i]
-    #     print(target)
     ell = n - g
 
     V1 = []
@@ -151,9 +142,6 @@ def bdd_query(B, Ag, b, g, n, q, d=1000):
 
     M = GSO.Mat(B) # B
     M.update_gso()
-
-    # print(B)
-    print(B.nrows, B.ncols)
 
     # len = 1681680
     k = 0
@@ -170,56 +158,60 @@ def bdd_query(B, Ag, b, g, n, q, d=1000):
         for i in pos2:
             s[i] = -1
 
-        s1 = IntegerMatrix.from_iterable(g, 1, s[:g // 2] + [0] * (g // 2))
-        # print(s1, s2)
+        s1 = IntegerMatrix.from_matrix([s[:g // 2] + [0] * (g // 2)])
 
-        target = Ag * s1
-        target.transpose()
+        target = s1 * Ag
         target.mod(q)
         target = [0] * ell + list(target[0])
-        # print(target)
 
         v1 = M.babai(target)
-        # print(v1)
+        # print(target, v1)
 
-        # V1.append((list(v1), s[:g // 2]))
-        V1.append(list(v1))
+        V1.append((list(v1), s[:g // 2]))
         V2.append(s[g // 2:])
 
 
     # Closest Pairs
 
-    # todo: remake so that we could store initial vector s1 in list V1
-
-    print(V1)
-    SH = SimHashes(n + ell)
-
-    V1 = np.array([np.array(SH.compress(v) + v) for v in V1])
+    # V1 = np.array([np.array(SH.compress(v) + v) for v in V1])
+    V1 = np.array([np.array(SH.compress(v) + s) for v, s in V1])
 
     # sorting by multiple columns tests:
     # https://stackoverflow.com/questions/2706605/sorting-a-2d-numpy-array-by-multiple-axes
     V1 = V1[np.lexsort([V1[:,i] for i in range(XPC_WORD_LEN, -1, -1)])]
 
-    # print(V1[:,0:XPC_WORD_LEN])
+    print(V1[0])
 
-    for s2 in V2:
-        s2_ = IntegerMatrix.from_iterable(g, 1, s[g // 2:] + [0] * (g // 2))
-        target = Ag * s2_
+    for k, s2 in enumerate(V2):
+        if k % 1000 == 0:
+            print(k, all_pos - k)
+
+        # BDD:
+        # s2_ = IntegerMatrix.from_iterable(g, 1, s[g // 2:] + [0] * (g // 2))
+        s2_ = IntegerMatrix.from_matrix([s2 + [0] * (g // 2)])
+
+        target =  s2_ * Ag
         b_ = copy.copy(b)
         b_[0] -= target[0]
         target = IntegerMatrix.from_matrix(b_)
         target.transpose()
+
         target.mod(q)
         target = [0] * ell + list(target[0])
 
         v2 = M.babai(target)
 
-        v2_hash = SH.compress(v2)
+        # Search:
+        # print(v2)
 
-        close_vec = search(V1, v2_hash, d)
-        if close_vec is not None: # todo
-            print((v2, v2_hash), (close_vec[XPC_WORD_LEN:], close_vec[:XPC_WORD_LEN]))
-            return close_vec[XPC_WORD_LEN:]
+        v2_hash = SH.compress(v2)
+        # close_vec = search(V1, v2_hash, d=10000)
+        # if close_vec is not None: # todo
+        #     print(i)
+        #     print(s2, close_vec[XPC_WORD_LEN:])
+        #     # print((v2, v2_hash), (close_vec[XPC_WORD_LEN:], close_vec[:XPC_WORD_LEN]))
+        #     # s = s2 + close_vec[:XPC_WORD_LEN]
+        #     return s2
 
 
 def ntru_kernel(arg0, params=None, seed=None):
@@ -295,7 +287,7 @@ def ntru_kernel(arg0, params=None, seed=None):
     verbose = params.pop("verbose")
 
     # A, q = read_ntru_from_file(n)
-    A, b, s, q = read_lwe_from_file(n)
+    A, b, s, e, q = read_lwe_from_file(n)
 
 
     print("Hybrid attack on NTRU n=%d" % n)
@@ -396,14 +388,15 @@ def ntru_kernel(arg0, params=None, seed=None):
 
     # BDD Queries
 
-    s_ = bdd_query(B, Ag, b, g, n, q)
+    sg = bdd_query(B, Ag, b, g, n, q)
 
-    print(s_)
+    # check = b - e - sg * Ag
 
-    # s_ = closest_pairs(V1, V2, n, q, d=10)
-
-    if s_ is None:
-        raise ValueError("No solution found.")
+    print(s)
+    # print(s_)
+    #
+    # if s_ is None:
+    #     raise ValueError("No solution found.")
 
 
 def ntru(n):
