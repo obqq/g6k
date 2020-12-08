@@ -40,9 +40,19 @@ from g6k.utils.ntru_gsa import find_beta
 
 from simhash import SimHashes, search, XPC_WORD_LEN
 
+from fpylll import CVP
+
 
 NTRU_BASEDIR = 'ntru_challenge'
 LWE_BASEDIR = 'lwe_challenge'
+
+def mmodq(v, q):
+    n  = len(v)
+    vmod = v
+    for i in range(n):
+        if vmod[i]>(q/2):
+            vmod[i] = q - vmod[i]
+    return vmod
 
 
 def read_ntru_from_file(n):
@@ -157,22 +167,29 @@ def bdd_query_plain_hybrid(B, Ag, b, g, n, q):
         for i in pos2:
             s[i] = -1
 
-        #s1 = IntegerMatrix.from_matrix([s[:g // 2] + [0] * (g // 2)])
         s1 = IntegerMatrix.from_matrix([s])
+        # FIXME: корректный s1 не появляется в ходе алгоритма!
+        # проверьте корректность kbits
         s1 = IntegerMatrix.from_matrix([[0, 1, 1, 0, -1, 1]])
-        #TODO:
+
         sA = s1 * Ag
         target = [0]*(ell+n)
         for i in range(n):
             target[i+ell] = (sA[0][i] - b[i][0])%q
+        print('targtet:', target)
 
-        #target = [0] * ell + list(target[0])
 
+        # BABAI MAY NOT BE SUFFICIENT!
         v1 = M.babai(target)
+        print('v1 babai:', v1)
         print(s1, sum([abs(v1[i]) for i in range(len(v1))]))
-        if sum([abs(v1[i]) for i in range(len(v1))])<=target_norm:
-            print(v1)
-            return v1
+
+        # CVP suffices (but slow)
+        v1 = CVP.closest_vector(B, target)
+        print('v1 CVP:', v1)
+
+        error = [target[i] - v1[i] for i in range(n+ell)]
+        print('error:', error) # should be +/-1,0
 
         assert False
 
@@ -218,6 +235,7 @@ def bdd_query_mitm(B, Ag, b, g, n, q, d=1000):
         target = [0] * ell + list(target[0])
 
         v1 = M.babai(target)
+
         # print(target, v1)
 
         V1.append((list(v1), s[:g // 2]))
