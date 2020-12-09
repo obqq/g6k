@@ -40,9 +40,19 @@ from g6k.utils.ntru_gsa import find_beta
 
 from simhash import SimHashes, search, XPC_WORD_LEN
 
+from fpylll import CVP
+
 
 NTRU_BASEDIR = 'ntru_challenge'
 LWE_BASEDIR = 'lwe_challenge'
+
+def mmodq(v, q):
+    n  = len(v)
+    vmod = v
+    for i in range(n):
+        if vmod[i]>(q/2):
+            vmod[i] = q - vmod[i]
+    return vmod
 
 
 def read_ntru_from_file(n):
@@ -125,7 +135,67 @@ def kbits(n, k):
             yield pos1, pos2
 
 
-def bdd_query(B, Ag, b, g, n, q, d=1000):
+def bdd_query_plain_hybrid(B, Ag, b, g, n, q):
+    SH = SimHashes(n, seed=1337)
+
+    ell = n - g
+
+    V1 = []
+    V2 = []
+
+    b = copy.copy(b)
+    b.transpose()
+
+    M = GSO.Mat(B) # B
+    M.update_gso()
+
+    dim = B.nrows
+    target_norm = ceil( (2./3)*dim + 1) + 1
+
+    # len = 1681680
+    k = 0
+    poss = kbits(g, ceil(g / 3))
+    all_pos = len(list(poss))
+    for pos1, pos2 in kbits(g, ceil(g / 3)):
+        if k % 10000 == 0:
+            print(k, all_pos - k)
+        k += 1
+
+        s = [0] * g
+        for i in pos1:
+            s[i] = 1
+        for i in pos2:
+            s[i] = -1
+
+        s1 = IntegerMatrix.from_matrix([s])
+        # FIXME: корректный s1 не появляется в ходе алгоритма!
+        # проверьте корректность kbits
+        s1 = IntegerMatrix.from_matrix([[0, 1, 1, 0, -1, 1]])
+
+        sA = s1 * Ag
+        target = [0]*(ell+n)
+        for i in range(n):
+            target[i+ell] = (sA[0][i] - b[i][0])%q
+        print('targtet:', target)
+
+
+        # BABAI MAY NOT BE SUFFICIENT!
+        v1 = M.babai(target)
+        print('v1 babai:', v1)
+        print(s1, sum([abs(v1[i]) for i in range(len(v1))]))
+
+        # CVP suffices (but slow)
+        v1 = CVP.closest_vector(B, target)
+        print('v1 CVP:', v1)
+
+        error = [target[i] - v1[i] for i in range(n+ell)]
+        print('error:', error) # should be +/-1,0
+
+        assert False
+
+    raise ValueError("No solution found.")
+
+def bdd_query_mitm(B, Ag, b, g, n, q, d=1000):
     '''
     Batch-CVP (BDD) with preprocessing, or (batch-CVPP).
     Using Babai's Nearest Plane
@@ -166,6 +236,7 @@ def bdd_query(B, Ag, b, g, n, q, d=1000):
         target = [0] * ell + list(target[0])
 
         v1 = M.babai(target)
+
         # print(target, v1)
 
         V1.append((list(v1), s[:g // 2]))
@@ -299,23 +370,26 @@ def ntru_kernel(arg0, params=None, seed=None):
     w = 2*(n/3.)
     paramset_NTRU1 = {'n': n, 'q': q, 'w': w}
     print(paramset_NTRU1)
+
     beta, g, rt, nsamples, GSA = plain_hybrid_complexity(paramset_NTRU1, verbose = True)
     print('beta, g, rt, nsamples:', beta, g, rt, nsamples)
 
     # if g is too small to help, recompute BKZ params
+    """
     if g <= 4:
         g = 0
         beta, nsamples,rt, GSA = find_beta(n, q, n)
-
-    g = 12
-
+    """
+    #force g = 6 for testing the hybrid
+    g = 6
+    beta, nsamples,rt, GSA = find_beta(n, q, n)
     print('beta, g, rt, nsamples:', beta, g, rt, nsamples)
     print('GSA predicted:')
     print([exp(GSA[i]) for i in range(len(GSA))])
 
     # fails for g = 0 (n = 32, 64)
     B, Al, Ag = ntru_plain_hybrid_basis(A, g, q, nsamples)
-
+    #B = ntru_basis(A, g, q, nsamples, b)
     # blocksizes = list(range(10, 50)) + [beta-20, beta-17] + list(range(beta - 14, beta + 25, 2))
     # print("blocksizes:", blocksizes)
 
@@ -328,7 +402,7 @@ def ntru_kernel(arg0, params=None, seed=None):
 
     d = g6k.full_n
     g6k.lll(0, g6k.full_n)
-    print(g6k.MatGSO)
+    #print(g6k.MatGSO)
     slope = basis_quality(g6k.M)["/"]
     print("Intial Slope = %.5f\n" % slope)
 
@@ -339,27 +413,29 @@ def ntru_kernel(arg0, params=None, seed=None):
     target_norm = ceil( (2./3)*d + 1) + 1
     print("target_norm:", target_norm)
 
-    # beta = 50
+
     #
     #   Preprocessing
     #
-    if beta < fpylll_crossover:
-        print("Starting a fpylll BKZ-%d tour. " % (beta), end=' ')
-        sys.stdout.flush()
-        bkz = BKZReduction(g6k.M)
-        par = fplll_bkz.Param(beta,
-                              strategies=fplll_bkz.DEFAULT_STRATEGY,
-                              max_loops=1)
-        bkz(par)
+    #tours = 5
+    for tt in range(tours):
+        if beta < fpylll_crossover:
+            print("Starting a fpylll BKZ-%d tour. " % (beta), end=' ')
+            sys.stdout.flush()
+            bkz = BKZReduction(g6k.M)
+            par = fplll_bkz.Param(beta,
+                                  strategies=fplll_bkz.DEFAULT_STRATEGY,
+                                  max_loops=1)
+            bkz(par)
 
-    else:
-        print("Starting a pnjBKZ-%d tour. " % (beta))
-        pump_n_jump_bkz_tour(g6k, tracer, beta, jump=jump,
-                                 verbose=verbose,
-                                 extra_dim4free=extra_dim4free,
-                                 dim4free_fun=dim4free_fun,
-                                 goal_r0=target_norm,
-                                 pump_params=pump_params)
+        else:
+            print("Starting a pnjBKZ-%d tour. " % (beta))
+            pump_n_jump_bkz_tour(g6k, tracer, beta, jump=jump,
+                                     verbose=verbose,
+                                     extra_dim4free=extra_dim4free,
+                                     dim4free_fun=dim4free_fun,
+                                     goal_r0=target_norm,
+                                     pump_params=pump_params)
 
             #T_BKZ = time.time() - T0_BKZ
 
@@ -374,7 +450,7 @@ def ntru_kernel(arg0, params=None, seed=None):
         else:
             raise ValueError("No solution found.")
 
-    print(g6k.M.B, B)
+    #print(g6k.M.B, B)
 
 
     n = A.ncols
@@ -390,11 +466,12 @@ def ntru_kernel(arg0, params=None, seed=None):
 
     # BDD Queries
 
-    sg = bdd_query(B, Ag, b, g, n, q)
+    #sg = bdd_query(B, Ag, b, g, n, q)
+    sg = bdd_query_plain_hybrid(B, Ag, b, g, n, q)
 
     # check = b - e - sg * Ag
 
-    print(s)
+    #print(s)
     print(sg)
 
     if sg is None:

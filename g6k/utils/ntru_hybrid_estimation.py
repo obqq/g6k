@@ -93,9 +93,30 @@ def plain_hybrid_complexity(paramset, verbose = False):
 	return best_beta, best_g, log(best_rt,2), best_nsamples, best_GSA
 
 
-def ntru_plain_hybrid_basis(A, g, q, nsamples):
+
+def ntru_basis(A, q, nsamples, b):
 	"""
 		Construct ntru lattice basis
+	"""
+	n = A.ncols
+	B = IntegerMatrix(nsamples + n+1, nsamples + n+1)
+
+	for i in range(n):
+		B[i, i] = 1
+		for j in range(nsamples):
+			B[i, j + n] = A[i, j]
+	for i in range(nsamples):
+		B[i + n, i + n] = q
+		B[nsamples+n, i + n] = b[0][i]
+	B[nsamples + n, nsamples+n] = -1
+
+	print('B:')
+	print(B)
+	return B
+
+def ntru_plain_hybrid_basis(A, g, q, nsamples):
+	"""
+		Construct ntru basis for the MitM hybrid
 	"""
 	n = A.ncols
 	ell = n - g
@@ -107,20 +128,18 @@ def ntru_plain_hybrid_basis(A, g, q, nsamples):
 	# 	B[i + ell, i + ell] = q
 	# 	for j in range(ell):
 	# 		B[i, n + j] = A[i, j]
-
 	for i in range(ell):
 		B[i, i] = 1
 		for j in range(nsamples):
 			B[i, j + ell] = A[i, j]
-
 	for i in range(nsamples):
 		B[i + ell, i + ell] = q
 
 	print('B:')
 	print(B)
 
-	# Al = B.submatrix(0, nsamples, nsamples, nsamples + ell)
-	# Ag = A.submatrix(0, ell, nsamples, nsamples)
+	#Al = B.submatrix(0, nsamples, nsamples, nsamples + ell)
+	#Ag = A.submatrix(0, ell, nsamples, nsamples)
 
 	Al = B.submatrix(0, ell, ell, ell + nsamples)
 	Ag = A.submatrix(ell, 0, nsamples, nsamples)
