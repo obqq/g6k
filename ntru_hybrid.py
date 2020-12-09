@@ -141,6 +141,7 @@ def bdd_query(B, Ag, b, g, n, q, d=1000):
     b.transpose()
 
     M = GSO.Mat(B) # B
+    M = GSO.Mat(B)
     M.update_gso()
 
     # len = 1681680
@@ -211,7 +212,7 @@ def bdd_query(B, Ag, b, g, n, q, d=1000):
             print(v1, v1_hash, s1)
             print(v2, v2_hash, s2)
             # print((v2, v2_hash), (close_vec[XPC_WORD_LEN:], close_vec[:XPC_WORD_LEN]))
-            sg = list(s1) + list(s1)
+            sg = list(s1) + list(s2)
             return sg
 
 

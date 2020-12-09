@@ -145,6 +145,9 @@ def gen_ntru_challenge(n):
 
 
 def gen_lwe_challenge(n, q):
+	'''
+	Uses sage to generate
+	'''
 	Amat = IntegerMatrix.random(n, "uniform", bits=floor(log(q,2)))
 	A = matrix(ZZ,[Amat[i] for i in range(Amat.nrows)])
 	w = int(n/3.)
