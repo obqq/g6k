@@ -37,9 +37,9 @@ class SimHashes:
         This is called during changes of context / basis switches.
         Note that this makes a recomputation of all the simhashes stored in db / cdb neccessary.
         '''
-        if not DEBUG and self.n < 30:
-            self.compress_pos = [[0]*6 for i in range(XPC_BIT_LEN)]
-            return
+        # if not DEBUG and self.n < 30:
+        #     self.compress_pos = [[0]*6 for i in range(XPC_BIT_LEN)]
+        #     return
 
         file_path = os.path.join(SIMHASH_CODES_BASEDIR, f'sc_{self.n}_{XPC_BIT_LEN}.def')
         if not os.path.exists(file_path):
@@ -72,8 +72,8 @@ class SimHashes:
         '''
 
         c = []
-        if not DEBUG and self.n < 30:
-            return c
+        # if not DEBUG and self.n < 30:
+        #     return c
 
         for j in range(XPC_WORD_LEN):
             c_tmp = 0
@@ -87,9 +87,13 @@ class SimHashes:
                 a -= v[self.compress_pos[k][4]]
                 a -= v[self.compress_pos[k][5]]
 
+                # print(f'a: {a}')
+
                 c_tmp >>= 1 # todo
                 if a > 0:
+                    # print(f'c_tmp_: {c_tmp}')
                     c_tmp |= a
+                # print(f'c_tmp: {c_tmp}')
 
             c.append(c_tmp) # todo: % self.n   ?
         return c
@@ -156,7 +160,7 @@ def search(V1, v_hash, d):
     return closest_w
 
 
-def closest_pairs(V1, V2, n, q, d):
+def closest_pairs(V1, V2, n, d):
     '''
     Searches for close pairs in sets V1 and V2
     '''
@@ -170,13 +174,14 @@ def closest_pairs(V1, V2, n, q, d):
 
     # print(V1[:,0:XPC_WORD_LEN])
 
-    for v in V2:
+    for i, v in enumerate(V2):
+        print(i)
         v_hash = SH.compress(v)
 
         close_vec = search(V1, v_hash, d)
         if close_vec is not None: # todo
             print((v, v_hash), (close_vec[XPC_WORD_LEN:], close_vec[:XPC_WORD_LEN]))
-            return close_vec[XPC_WORD_LEN:]
+            return v, close_vec[XPC_WORD_LEN:]
 
 
 def test1():
@@ -184,20 +189,28 @@ def test1():
     print(f'n={n}')
     SH = SimHashes(n)
 
-    n = 30
+    n = 32
     print(f'n={n}')
     SH = SimHashes(n)
 
 
 def test2():
-    SH = SimHashes(3)
-    v1 = []
+    np.random.seed(1337)
+
+    q = 4201
+
+    for n in range(1, 32):
+        SH = SimHashes(n)
+
+        v1 = [np.random.randint(n) for _ in range(n)]
+        hash = SH.compress(v1)
+        print(n, hash)
 
 
 def test3():
     V = [1, 1, 2, 4, 4, 5, 6, 6, 7, 7, 9]
     n = len(V)
-    print(search_range(V, 3, n))
+    print(search_range(V, 10, n))
 
 
 def test4():
@@ -208,30 +221,47 @@ def test4():
     print(V1)
 
 def test5():
-    from fpylll import CVP
+    from fpylll import CVP, GSO, IntegerMatrix
 
     # todo: tests with builtin CVP
 
     global DEBUG
     DEBUG = True
 
-    n = 7
+    n = 15
+    q = 4201
     # n = 31
     d = 10
 
     np.random.seed(1337)
 
-    V1 = [[np.random.randint(n) for _ in range(n)] for _ in range(100)]
-    V2 = [[np.random.randint(n) for _ in range(n)] for _ in range(100)]
-    print(closest_pairs(V1, V2, n, d))
+    V1 = [[np.random.randint(q) for _ in range(n)] for _ in range(n-1)]
 
-    V1 = [[np.random.randint(n) for _ in range(n)] for _ in range(1000)]
-    V2 = [[np.random.randint(n) for _ in range(n)] for _ in range(1000)]
-    print(closest_pairs(V1, V2, n, d))
+    V2 = [[np.random.randint(q) for _ in range(n)] for _ in range(1000)]
 
-    V1 = [[np.random.randint(n) for _ in range(n)] for _ in range(10000)]
-    V2 = [[np.random.randint(n) for _ in range(n)] for _ in range(10000)]
-    print(closest_pairs(V1, V2, n, d))
+    v1, v2 = closest_pairs(V1, V2, n, d)
+
+    print(v1)
+    print('closest to v1:', v2)
+
+    B = IntegerMatrix.from_matrix(V1)
+
+    # M = GSO.Mat(B)
+    # M.update_gso()
+    # res = M.babai(V2[0])
+
+    res = CVP.closest_vector(B, v2.tolist())
+    print('asd')
+    print(res)
+
+
+    # V1 = [[np.random.randint(n) for _ in range(n)] for _ in range(1000)]
+    # V2 = [[np.random.randint(n) for _ in range(n)] for _ in range(1000)]
+    # print(closest_pairs(V1, V2, n, d))
+    #
+    # V1 = [[np.random.randint(n) for _ in range(n)] for _ in range(10000)]
+    # V2 = [[np.random.randint(n) for _ in range(n)] for _ in range(10000)]
+    # print(closest_pairs(V1, V2, n, d))
 
     # np.random.seed(1336)
     #
@@ -253,11 +283,8 @@ def test5():
     #
 
 
-
-
-
 def main():
-    test5()
+    test2()
 
 
 if __name__ == '__main__':

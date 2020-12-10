@@ -110,6 +110,7 @@ def combinations(iterable, r):
 #
 # TODO: generalise to different number of 1s and -1s
 #
+
 def kbits(n, k):
     """
     create all combinations of length k of indicies {0,...n-1}
@@ -135,92 +136,173 @@ def kbits(n, k):
             yield pos1, pos2
 
 
-def bdd_query_plain_hybrid(B, Ag, b, g, n, q):
-    SH = SimHashes(n, seed=1337)
+def gen_secret(n):
+    """
+    create all combinations of length k of indicies {0,...n-1}
+    these are all possible positions of "1"s
 
-    ell = n - g
+    k position of "1"s
+    k position of "-1"s
+    """
+    full_range = range(n)
 
-    V1 = []
-    V2 = []
+    # todo: remove duplicates
 
-    b = copy.copy(b)
-    b.transpose()
+    for i in range(n): # number of "0"s in this loop
+        for pos0 in combinations(full_range, i):
 
-    M = GSO.Mat(B) # B
-    M.update_gso()
+            new_range1 = []
+            start_pos = 0
+            for puncture in pos0:
+                new_range1 += tuple(range(start_pos, puncture))
+                start_pos = puncture+1
+            new_range1 += tuple(range(start_pos, n))
 
-    dim = B.nrows
-    target_norm = ceil( (2./3)*dim + 1) + 1
+            for j in range(n - i): # number of "1"s in this loop
+                for pos1 in combinations(new_range1, j):
 
-    # len = 1681680
-    k = 0
-    poss = kbits(g, ceil(g / 3))
-    all_pos = len(list(poss))
-    for pos1, pos2 in kbits(g, ceil(g / 3)):
-        if k % 10000 == 0:
-            print(k, all_pos - k)
-        k += 1
+                    # remove pos1 from the range of pos2
+                    new_range2 = []
+                    start_pos = 0
+                    for puncture in pos1:
+                        new_range2 += tuple(range(start_pos, puncture))
+                        start_pos = puncture+1
+                    new_range2 += tuple(range(start_pos, n))
+                    # all possible positions of "-1"s
+                    for pos2 in combinations(new_range2, n - i - j):
 
+                        yield pos1, pos2
+
+
+def test_kbits():
+    from pprint import pprint
+
+    g = 8
+
+    positions = list(gen_secret(g))
+    # pprint(positions)
+    secrets = []
+    for pos1, pos2 in positions:
         s = [0] * g
         for i in pos1:
             s[i] = 1
         for i in pos2:
             s[i] = -1
+        secrets.append(s)
 
-        s1 = IntegerMatrix.from_matrix([s])
-        # FIXME: корректный s1 не появляется в ходе алгоритма!
-        # проверьте корректность kbits
-        s1 = IntegerMatrix.from_matrix([[0, 1, 1, 0, -1, 1]])
+    count = 0
+    count_dups = 0
+    for i, x in enumerate(secrets):
+        for j, y in enumerate(secrets):
+            count += 1
+            if i != j and x == y:
+                count_dups += 1
 
-        sA = s1 * Ag
+    print(count_dups, count)
+    # pprint(sorted(secrets))
+    print([0, -1, 0, 0, -1, 1] in secrets)
+
+
+def check_success(v):
+    return all([k in [-1, 0, 1] for k in v])
+
+
+def bdd_query_plain_hybrid(B, Ag, b, g, n, q):
+    SH = SimHashes(n, seed=1337)
+
+    ell = n - g
+
+    S = set()
+    V1 = []
+
+    b = copy.copy(b)
+    b.transpose()
+
+    M = GSO.Mat(B)
+    M.update_gso()
+
+    dim = B.nrows
+    target_norm = ceil( (2./3)*dim + 1) + 1
+
+    k = 0
+    all_pos = gen_secret(g)
+    all_pos_lst = list(all_pos)
+    all_pos_len = len(all_pos_lst)
+    for pos1, pos2 in all_pos_lst:
+        if k % 10000 == 0:
+            print(k, all_pos_len - k)
+        k += 1
+
+        sg = [0] * g
+        for i in pos1:
+            sg[i] = 1
+        for i in pos2:
+            sg[i] = -1
+
+        sg_ = tuple(sg)
+        if sg_ in S:
+            continue
+        S.add(sg_)
+
+        if sg != [0, -1, 0, 0, -1, 1]:
+            continue
+
+        sg = IntegerMatrix.from_matrix([sg])
+
+        sA = sg * Ag
         target = [0]*(ell+n)
         for i in range(n):
-            target[i+ell] = (sA[0][i] - b[i][0])%q
-        print('targtet:', target)
-
+            target[i + ell] = (sA[0][i] - b[i][0]) % q
+        # print('target:', target)
 
         # BABAI MAY NOT BE SUFFICIENT!
-        v1 = M.babai(target)
-        print('v1 babai:', v1)
-        print(s1, sum([abs(v1[i]) for i in range(len(v1))]))
+        v = M.babai(target)
+        print('v babai:', v)
+        print(sg, sum([abs(v[i]) for i in range(len(v))]))
 
         # CVP suffices (but slow)
-        v1 = CVP.closest_vector(B, target)
-        print('v1 CVP:', v1)
+        v = CVP.closest_vector(B, target)
+        print('v CVP:', v)
 
-        error = [target[i] - v1[i] for i in range(n+ell)]
+        error = [target[i] - v[i] for i in range(n + ell)]
         print('error:', error) # should be +/-1,0
-
-        assert False
+        print(error)
+        if check_success(error):
+            print('success')
+            return sg
 
     raise ValueError("No solution found.")
+
 
 def bdd_query_mitm(B, Ag, b, g, n, q, d=1000):
     '''
     Batch-CVP (BDD) with preprocessing, or (batch-CVPP).
     Using Babai's Nearest Plane
     '''
-    SH = SimHashes(n, seed=1337)
+    SH = SimHashes(15, seed=1337)
 
     ell = n - g
 
+    S1 = set()
     V1 = []
-    V2 = []
+    V2 = set()
 
     b = copy.copy(b)
     b.transpose()
 
-    M = GSO.Mat(B) # B
     M = GSO.Mat(B)
     M.update_gso()
 
     # len = 1681680
     k = 0
-    poss = kbits(g, ceil(g / 3))
-    all_pos = len(list(poss))
-    for pos1, pos2 in kbits(g, ceil(g / 3)):
-        if k % 10000 == 0:
-            print(k, all_pos - k)
+    all_pos = gen_secret(g)
+    all_pos_lst = list(all_pos)
+    all_pos_len = len(all_pos_lst)
+    # print(all_pos_lst)
+    for pos1, pos2 in all_pos_lst:
+        # print(k)
+        if k % 1000 == 0:
+            print(k, all_pos_len - k)
         k += 1
 
         s = [0] * g
@@ -229,19 +311,35 @@ def bdd_query_mitm(B, Ag, b, g, n, q, d=1000):
         for i in pos2:
             s[i] = -1
 
+        # if s == [0, -1, 0, 0, -1, 1]:
+        #     print('secret found')
+
+        V2.add(tuple(s[g // 2:]))
+        s1_ = tuple(s[:g // 2])
+        if s1_ in S1:
+            continue
+        S1.add(s1_)
+
         s1 = IntegerMatrix.from_matrix([s[:g // 2] + [0] * (g // 2)])
+
+
+        s1_prev = s1
 
         target = s1 * Ag
         target.mod(q)
         target = [0] * ell + list(target[0])
 
-        v1 = M.babai(target)
+        # v1 = M.babai(target)
+        v1 = CVP.closest_vector(B, target)
+
+        # print(f'v1: {v1}')
 
         # print(target, v1)
 
         V1.append((list(v1), s[:g // 2]))
-        V2.append(s[g // 2:])
 
+    # print(len(S1)) # 3^(g//2)
+    # print(len(V2)) # 3^(g//2)
 
     # Closest Pairs
 
@@ -252,39 +350,80 @@ def bdd_query_mitm(B, Ag, b, g, n, q, d=1000):
     # https://stackoverflow.com/questions/2706605/sorting-a-2d-numpy-array-by-multiple-axes
     V1 = V1[np.lexsort([V1[:,i] for i in range(XPC_WORD_LEN, -1, -1)])]
 
-    print(V1[0])
 
-    for k, s2 in enumerate(V2):
+    for v in V1:
+        v1, v1_hash, s1 = v[XPC_WORD_LEN:-(g // 2)], v[:XPC_WORD_LEN], v[-(g // 2):]
+        print(v1, v1_hash, s1)
+
+    # return
+
+    V1_ = IntegerMatrix.from_matrix([v[:XPC_WORD_LEN].tolist() for v in V1[1:]])
+    M_ = GSO.Mat(V1_)
+    M_.update_gso()
+
+    for s2 in V2:
         if k % 1000 == 0:
-            print(k, all_pos - k)
+            print(k, all_pos_len - k)
+
+        if list(s2) == [0, -1, 1]:
+            print('found s2')
+        else:
+            continue
 
         # BDD:
-        # s2_ = IntegerMatrix.from_iterable(g, 1, s[g // 2:] + [0] * (g // 2))
-        s2_ = IntegerMatrix.from_matrix([s2 + [0] * (g // 2)])
+        s2_ = IntegerMatrix.from_matrix([list(s2) + [0] * (g // 2)])
 
-        target =  s2_ * Ag
-        b_ = copy.copy(b)
-        b_[0] -= target[0]
-        target = IntegerMatrix.from_matrix(b_)
-        target.transpose()
+        # target =  s2_ * Ag
+        # b_ = copy.copy(b)
+        # b_[0] -= target[0]
+        # target = IntegerMatrix.from_matrix(b_)
+        # target.transpose()
+        #
+        # target.mod(q)
+        # target = [0] * ell + list(target[0])
 
-        target.mod(q)
-        target = [0] * ell + list(target[0])
+        sA = s2_ * Ag
+        target = [0] * (ell + n)
+        for i in range(n):
+            target[i + ell] = (sA[0][i] - b[i][0]) % q
 
-        v2 = M.babai(target)
+        # v2 = M.babai(target)
+        v2 = CVP.closest_vector(B, target)
 
         # Search:
 
         v2_hash = SH.compress(v2)
-        close_vec = search(V1, v2_hash, d=10000)
-        if close_vec is not None: # todo
-            print(i)
+
+        # close_vec = search(V1, v2_hash, d=10000)
+
+        # close_vec_ = CVP.closest_vector(V1_, v2_hash)
+        # print(close_vec, close_vec_)
+
+        close_vec_ = M_.babai(v2_hash)
+        print('babai:', close_vec_)
+
+        for v in V1:
+            v1, v1_hash, s1 = v[XPC_WORD_LEN:-(g // 2)], v[:XPC_WORD_LEN], v[-(g // 2):]
+            if s1.tolist() == [0, -1, 0]:
+                print('found s1')
+                break
+
+        close_vec = v
+
+        if close_vec is not None:
+            # print(i)
             v1, v1_hash, s1 = close_vec[XPC_WORD_LEN:-(g // 2)], close_vec[:XPC_WORD_LEN], close_vec[-(g // 2):]
-            print(v1, v1_hash, s1)
-            print(v2, v2_hash, s2)
+            print('v1:', len(v1), v1, v1_hash, s1)
+            print('v2:', len(v2), v2, v2_hash, s2)
             # print((v2, v2_hash), (close_vec[XPC_WORD_LEN:], close_vec[:XPC_WORD_LEN]))
             sg = list(s1) + list(s2)
-            return sg
+            print(sg)
+
+            error = [target[i] - v2[i] for i in range(n + ell)]
+            print('error:', error) # should be +/-1,0
+            if check_success(error):
+                print('success')
+                return sg
 
 
 def ntru_kernel(arg0, params=None, seed=None):
@@ -466,8 +605,8 @@ def ntru_kernel(arg0, params=None, seed=None):
 
     # BDD Queries
 
-    #sg = bdd_query(B, Ag, b, g, n, q)
-    sg = bdd_query_plain_hybrid(B, Ag, b, g, n, q)
+    # sg = bdd_query_plain_hybrid(B, Ag, b, g, n, q)
+    sg = bdd_query_mitm(B, Ag, b, g, n, q)
 
     # check = b - e - sg * Ag
 
