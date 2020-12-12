@@ -207,74 +207,119 @@ def check_success(v):
     return all([k in [-1, 0, 1] for k in v])
 
 
-def bdd_query_plain_hybrid(B, Ag, b, g, n, q):
+def reduction(beta, tours, fpylll_crossover, g6k, tracer, jump,
+            verbose, extra_dim4free, dim4free_fun, goal_r0, pump_params):
+    '''
+    '''
+    for tt in range(tours):
+        if beta < fpylll_crossover:
+            print("Starting a fpylll BKZ-%d tour. " % (beta), end=' ')
+            sys.stdout.flush()
+            bkz = BKZReduction(g6k.M)
+            par = fplll_bkz.Param(beta,
+                                  strategies=fplll_bkz.DEFAULT_STRATEGY,
+                                  max_loops=1)
+            bkz(par)
+
+        else:
+            print("Starting a pnjBKZ-%d tour. " % (beta))
+            pump_n_jump_bkz_tour(g6k, tracer, beta, jump=jump,
+                                     verbose=verbose,
+                                     extra_dim4free=extra_dim4free,
+                                     dim4free_fun=dim4free_fun,
+                                     goal_r0=target_norm,
+                                     pump_params=pump_params)
+
+
+def bdd_query_plain_hybrid(Ag, b, g, n, q,
+                         beta, tours, fpylll_crossover, g6k, tracer, jump,
+                         verbose, extra_dim4free, dim4free_fun, goal_r0, pump_params):
+
     SH = SimHashes(n, seed=1337)
 
     ell = n - g
 
-    S = set()
-    V1 = []
-
     b = copy.copy(b)
     b.transpose()
 
-    M = GSO.Mat(B)
-    M.update_gso()
-
-    dim = B.nrows
-    target_norm = ceil( (2./3)*dim + 1) + 1
 
     k = 0
-    all_pos = gen_secret(g)
-    all_pos_lst = list(all_pos)
-    all_pos_len = len(all_pos_lst)
-    for pos1, pos2 in all_pos_lst:
-        if k % 10000 == 0:
-            print(k, all_pos_len - k)
-        k += 1
+    while beta < 100:
+        print(f'beta: {beta}')
 
-        sg = [0] * g
-        for i in pos1:
-            sg[i] = 1
-        for i in pos2:
-            sg[i] = -1
+        S = set()
+        V1 = []
 
-        sg_ = tuple(sg)
-        if sg_ in S:
-            continue
-        S.add(sg_)
+        B = g6k.M.B
 
-        if sg != [0, -1, 0, 0, -1, 1]:
-            continue
+        dim = B.nrows
+        target_norm = ceil( (2./3)*dim + 1) + 1
 
-        sg = IntegerMatrix.from_matrix([sg])
+        M = GSO.Mat(B)
+        M.update_gso()
+        print(B)
 
-        sA = sg * Ag
-        target = [0]*(ell+n)
-        for i in range(n):
-            target[i + ell] = (sA[0][i] - b[i][0]) % q
-        # print('target:', target)
+        for pos1, pos2 in gen_secret(g):
+            if k % 10000 == 0:
+                print(k)
+            k += 1
 
-        # BABAI MAY NOT BE SUFFICIENT!
-        v = M.babai(target)
-        print('v babai:', v)
-        print(sg, sum([abs(v[i]) for i in range(len(v))]))
+            sg = [0] * g
+            for i in pos1:
+                sg[i] = 1
+            for i in pos2:
+                sg[i] = -1
 
-        # CVP suffices (but slow)
-        v = CVP.closest_vector(B, target)
-        print('v CVP:', v)
+            sg_ = tuple(sg)
+            if sg_ in S:
+                continue
+            S.add(sg_)
 
-        error = [target[i] - v[i] for i in range(n + ell)]
-        print('error:', error) # should be +/-1,0
-        print(error)
-        if check_success(error):
-            print('success')
-            return sg
+            if sg != [0, -1, 0, 0, -1, 1]:
+                continue
+
+            sg = IntegerMatrix.from_matrix([sg])
+
+            sA = sg * Ag
+            target = [0]*(ell+n)
+            for i in range(n):
+                target[i + ell] = (sA[0][i] - b[i][0]) % q
+            # print('target:', target)
+
+            # BABAI MAY NOT BE SUFFICIENT!
+            v = M.babai(target)
+            print('v babai:', v)
+            print(sg, sum([abs(v[i]) for i in range(len(v))]))
+
+            # CVP suffices (but slow)
+            # v = CVP.closest_vector(B, target)
+            # print('v CVP:', v)
+
+            error = [target[i] - v[i] for i in range(n + ell)]
+            print('error:', error) # should be +/-1,0
+            print(error)
+            if check_success(error):
+                print('success')
+                return sg
+
+        beta += 1
+
+        # makes no difference
+        # todo: fix s.t. actually aplies reduction
+        g6k = reduction(beta, tours, fpylll_crossover, g6k, tracer,
+                                                        jump=jump,
+                                                        verbose=verbose,
+                                                        extra_dim4free=extra_dim4free,
+                                                        dim4free_fun=dim4free_fun,
+                                                        goal_r0=target_norm,
+                                                        pump_params=pump_params)
 
     raise ValueError("No solution found.")
 
 
-def bdd_query_mitm(B, Ag, b, g, n, q, d=1000):
+def bdd_query_mitm(Ag, b, g, n, q, d,
+                         beta, tours, fpylll_crossover, g6k, tracer, jump,
+                         verbose, extra_dim4free, dim4free_fun, goal_r0, pump_params):
     '''
     Batch-CVP (BDD) with preprocessing, or (batch-CVPP).
     Using Babai's Nearest Plane
@@ -295,32 +340,30 @@ def bdd_query_mitm(B, Ag, b, g, n, q, d=1000):
 
     # len = 1681680
     k = 0
-    all_pos = gen_secret(g)
-    all_pos_lst = list(all_pos)
-    all_pos_len = len(all_pos_lst)
+    secrets1 = gen_secret(g // 2)
+    secrets2 = gen_secret(g // 2)
     # print(all_pos_lst)
-    for pos1, pos2 in all_pos_lst:
+    for pos1, pos2 in secrets1:
         # print(k)
         if k % 1000 == 0:
-            print(k, all_pos_len - k)
+            print(k)
         k += 1
 
-        s = [0] * g
+        s1 = [0] * g
         for i in pos1:
-            s[i] = 1
+            s1[i] = 1
         for i in pos2:
-            s[i] = -1
+            s1[i] = -1
 
         # if s == [0, -1, 0, 0, -1, 1]:
         #     print('secret found')
 
-        V2.add(tuple(s[g // 2:]))
-        s1_ = tuple(s[:g // 2])
+        s1_ = tuple(s1_)
         if s1_ in S1:
             continue
         S1.add(s1_)
 
-        s1 = IntegerMatrix.from_matrix([s[:g // 2] + [0] * (g // 2)])
+        s1 = IntegerMatrix.from_matrix([s1 + [0] * (g // 2)])
 
 
         s1_prev = s1
@@ -336,7 +379,7 @@ def bdd_query_mitm(B, Ag, b, g, n, q, d=1000):
 
         # print(target, v1)
 
-        V1.append((list(v1), s[:g // 2]))
+        V1.append((list(v1), s1))
 
     # print(len(S1)) # 3^(g//2)
     # print(len(V2)) # 3^(g//2)
@@ -361,9 +404,18 @@ def bdd_query_mitm(B, Ag, b, g, n, q, d=1000):
     M_ = GSO.Mat(V1_)
     M_.update_gso()
 
-    for s2 in V2:
+    k = 0
+    for pos1, pos2 in secrets2:
+        # print(k)
         if k % 1000 == 0:
-            print(k, all_pos_len - k)
+            print(k)
+        k += 1
+
+        s2 = [0] * g
+        for i in pos2:
+            s2[i] = 1
+        for i in pos2:
+            s2[i] = -1
 
         if list(s2) == [0, -1, 1]:
             print('found s2')
@@ -372,15 +424,6 @@ def bdd_query_mitm(B, Ag, b, g, n, q, d=1000):
 
         # BDD:
         s2_ = IntegerMatrix.from_matrix([list(s2) + [0] * (g // 2)])
-
-        # target =  s2_ * Ag
-        # b_ = copy.copy(b)
-        # b_[0] -= target[0]
-        # target = IntegerMatrix.from_matrix(b_)
-        # target.transpose()
-        #
-        # target.mod(q)
-        # target = [0] * ell + list(target[0])
 
         sA = s2_ * Ag
         target = [0] * (ell + n)
@@ -394,21 +437,20 @@ def bdd_query_mitm(B, Ag, b, g, n, q, d=1000):
 
         v2_hash = SH.compress(v2)
 
-        # close_vec = search(V1, v2_hash, d=10000)
+        close_vec = search(V1, v2_hash, d=10000)
 
         # close_vec_ = CVP.closest_vector(V1_, v2_hash)
         # print(close_vec, close_vec_)
 
-        close_vec_ = M_.babai(v2_hash)
-        print('babai:', close_vec_)
+        # close_vec_ = M_.babai(v2_hash)
+        # print('babai:', close_vec_)
 
-        for v in V1:
-            v1, v1_hash, s1 = v[XPC_WORD_LEN:-(g // 2)], v[:XPC_WORD_LEN], v[-(g // 2):]
-            if s1.tolist() == [0, -1, 0]:
-                print('found s1')
-                break
-
-        close_vec = v
+        # for v in V1:
+        #     v1, v1_hash, s1 = v[XPC_WORD_LEN:-(g // 2)], v[:XPC_WORD_LEN], v[-(g // 2):]
+        #     if s1.tolist() == [0, -1, 0]:
+        #         print('found s1')
+        #         break
+        # close_vec = v1
 
         if close_vec is not None:
             # print(i)
@@ -418,6 +460,8 @@ def bdd_query_mitm(B, Ag, b, g, n, q, d=1000):
             # print((v2, v2_hash), (close_vec[XPC_WORD_LEN:], close_vec[:XPC_WORD_LEN]))
             sg = list(s1) + list(s2)
             print(sg)
+
+            v = v1 + v2
 
             error = [target[i] - v2[i] for i in range(n + ell)]
             print('error:', error) # should be +/-1,0
@@ -498,12 +542,13 @@ def ntru_kernel(arg0, params=None, seed=None):
     dont_trace = params.pop("dummy_tracer")
     verbose = params.pop("verbose")
 
-    # A, q = read_ntru_from_file(n)
+    #
+    # Loading pregenerated LWE instance
+    #
+
     A, b, s, e, q = read_lwe_from_file(n)
 
-
-    print("Hybrid attack on NTRU n=%d" % n)
-
+    print("Hybrid attack on LWE n=%d" % n)
 
     # compute the attack parameters
     w = 2*(n/3.)
@@ -526,12 +571,16 @@ def ntru_kernel(arg0, params=None, seed=None):
     print('GSA predicted:')
     print([exp(GSA[i]) for i in range(len(GSA))])
 
-    # fails for g = 0 (n = 32, 64)
     B, Al, Ag = ntru_plain_hybrid_basis(A, g, q, nsamples)
-    #B = ntru_basis(A, g, q, nsamples, b)
+    # B = ntru_basis(A, g, q, nsamples, b)
     # blocksizes = list(range(10, 50)) + [beta-20, beta-17] + list(range(beta - 14, beta + 25, 2))
     # print("blocksizes:", blocksizes)
 
+    #
+    #   Preprocessing
+    #
+
+    print(B)
     g6k = Siever(B, params)
 
     if dont_trace:
@@ -554,29 +603,23 @@ def ntru_kernel(arg0, params=None, seed=None):
 
 
     #
-    #   Preprocessing
+    # First part: Reduction
     #
+
     #tours = 5
-    for tt in range(tours):
-        if beta < fpylll_crossover:
-            print("Starting a fpylll BKZ-%d tour. " % (beta), end=' ')
-            sys.stdout.flush()
-            bkz = BKZReduction(g6k.M)
-            par = fplll_bkz.Param(beta,
-                                  strategies=fplll_bkz.DEFAULT_STRATEGY,
-                                  max_loops=1)
-            bkz(par)
+    reduction(beta, tours, fpylll_crossover, g6k, tracer,
+                                                    jump=jump,
+                                                    verbose=verbose,
+                                                    extra_dim4free=extra_dim4free,
+                                                    dim4free_fun=dim4free_fun,
+                                                    goal_r0=target_norm,
+                                                    pump_params=pump_params)
 
-        else:
-            print("Starting a pnjBKZ-%d tour. " % (beta))
-            pump_n_jump_bkz_tour(g6k, tracer, beta, jump=jump,
-                                     verbose=verbose,
-                                     extra_dim4free=extra_dim4free,
-                                     dim4free_fun=dim4free_fun,
-                                     goal_r0=target_norm,
-                                     pump_params=pump_params)
 
-            #T_BKZ = time.time() - T0_BKZ
+    print()
+    print(g6k.M.B)
+
+    #T_BKZ = time.time() - T0_BKZ
 
     print('GSA output:')
     print([g6k.M.get_r(i, i) for i in range(d)])
@@ -595,7 +638,6 @@ def ntru_kernel(arg0, params=None, seed=None):
     n = A.ncols
     ell = n - g
     print(n, g, ell)
-    # todo: coeffs like in ntru_plain_hybrid_basis
 
     print(A)
     print()
@@ -603,10 +645,28 @@ def ntru_kernel(arg0, params=None, seed=None):
     print()
     print(Ag)
 
-    # BDD Queries
+    d = 100 # simash distance
 
-    # sg = bdd_query_plain_hybrid(B, Ag, b, g, n, q)
-    sg = bdd_query_mitm(B, Ag, b, g, n, q)
+    #
+    # Second part: MiTM
+    # BDD Queries
+    #
+
+    sg = bdd_query_plain_hybrid(Ag, b, g, n, q,
+                             beta, tours, fpylll_crossover, g6k, tracer, jump=jump,
+                             verbose=verbose,
+                             extra_dim4free=extra_dim4free,
+                             dim4free_fun=dim4free_fun,
+                             goal_r0=target_norm,
+                             pump_params=pump_params)
+
+    # sg = bdd_query_mitm(Ag, b, g, n, q, d,
+    #                          beta, tours, fpylll_crossover, g6k, tracer, jump=jump,
+    #                          verbose=verbose,
+    #                          extra_dim4free=extra_dim4free,
+    #                          dim4free_fun=dim4free_fun,
+    #                          goal_r0=target_norm,
+    #                          pump_params=pump_params)
 
     # check = b - e - sg * Ag
 
