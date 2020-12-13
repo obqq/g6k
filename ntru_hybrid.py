@@ -11,7 +11,7 @@ import re
 import sys
 import time
 import copy
-
+from itertools import product
 import os.path
 
 from collections import OrderedDict # noqa
@@ -136,7 +136,7 @@ def kbits(n, k):
             yield pos1, pos2
 
 
-def gen_secret(n):
+def gen_secret_(n):
     """
     create all combinations of length k of indicies {0,...n-1}
     these are all possible positions of "1"s
@@ -174,43 +174,82 @@ def gen_secret(n):
                         yield pos1, pos2
 
 
+def gen_secret(k):
+    values = [-1, 0, 1]
+    for s in product(*[values] * k):
+        yield list(s)
+
+
 def test_kbits():
     from pprint import pprint
 
-    g = 8
+    g = 3
 
-    positions = list(gen_secret(g))
+    secrets = list(gen_secret(g))
     # pprint(positions)
-    secrets = []
-    for pos1, pos2 in positions:
-        s = [0] * g
-        for i in pos1:
-            s[i] = 1
-        for i in pos2:
-            s[i] = -1
-        secrets.append(s)
 
     count = 0
     count_dups = 0
     for i, x in enumerate(secrets):
+
         for j, y in enumerate(secrets):
-            count += 1
             if i != j and x == y:
                 count_dups += 1
 
     print(count_dups, count)
-    # pprint(sorted(secrets))
-    print([0, -1, 0, 0, -1, 1] in secrets)
+    pprint(sorted(secrets))
+    print([0, -1, 0] in secrets)
 
 
 def check_success(v):
     return all([k in [-1, 0, 1] for k in v])
 
 
-def reduction(beta, tours, fpylll_crossover, g6k, tracer, jump,
-            verbose, extra_dim4free, dim4free_fun, goal_r0, pump_params):
+def reduction(B, beta, params):
     '''
     '''
+    extra_dim4free = params.get("bkz/extra_dim4free")
+    jump = params.get("bkz/jump")
+    dim4free_fun = params.get("bkz/dim4free_fun")
+    pump_params = params.get("pump")
+    # pump_params = pop_prefixed_params("pump", params)
+    fpylll_crossover = params.get("bkz/fpylll_crossover")
+    blocksizes = params.get("bkz/blocksizes")
+    tours = params.get("bkz/tours")
+
+    print("params:", extra_dim4free, jump, dim4free_fun, pump_params,
+        fpylll_crossover, blocksizes, tours)
+
+    # flow of the lwe solver
+    svp_bkz_time_factor = params.get("lwe/svp_bkz_time_factor")
+    goal_margin = params.get("lwe/goal_margin")
+
+    # generation of lwe instance and Kannan's embedding
+
+    # misc
+    dont_trace = params.get("dummy_tracer")
+    verbose = params.get("verbose")
+
+    g6k = Siever(B, params)
+
+    if dont_trace:
+        tracer = dummy_tracer
+    else:
+        tracer = SieveTreeTracer(g6k, root_label=("ntru"), start_clocks=True)
+
+    d = g6k.full_n
+    g6k.lll(0, g6k.full_n)
+    #print(g6k.MatGSO)
+    slope = basis_quality(g6k.M)["/"]
+    print("Intial Slope = %.5f\n" % slope)
+
+    print('GSA input:')
+    print([g6k.M.get_r(i, i) for i in range(d)])
+
+    print('d:', d)
+    target_norm = ceil( (2./3)*d + 1) + 1
+    print("target_norm:", target_norm)
+
     for tt in range(tours):
         if beta < fpylll_crossover:
             print("Starting a fpylll BKZ-%d tour. " % (beta), end=' ')
@@ -230,10 +269,22 @@ def reduction(beta, tours, fpylll_crossover, g6k, tracer, jump,
                                      goal_r0=target_norm,
                                      pump_params=pump_params)
 
+    print('g6k.M.B')
+    print(g6k.M.B)
 
-def bdd_query_plain_hybrid(Ag, b, g, n, q,
-                         beta, tours, fpylll_crossover, g6k, tracer, jump,
-                         verbose, extra_dim4free, dim4free_fun, goal_r0, pump_params):
+    #T_BKZ = time.time() - T0_BKZ
+
+    print('GSA output:')
+    print([g6k.M.get_r(i, i) for i in range(d)])
+    #print(g6k.M.get_r(0, 0))
+    print(g6k.M.B[0], g6k.M.get_r(0,0))
+
+    return g6k.M.B
+
+
+def bdd_query_plain_hybrid(B, Ag, b, g, n, q, beta, params):
+    '''
+    '''
 
     SH = SimHashes(n, seed=1337)
 
@@ -242,15 +293,11 @@ def bdd_query_plain_hybrid(Ag, b, g, n, q,
     b = copy.copy(b)
     b.transpose()
 
-
     k = 0
     while beta < 100:
         print(f'beta: {beta}')
 
-        S = set()
         V1 = []
-
-        B = g6k.M.B
 
         dim = B.nrows
         target_norm = ceil( (2./3)*dim + 1) + 1
@@ -259,24 +306,12 @@ def bdd_query_plain_hybrid(Ag, b, g, n, q,
         M.update_gso()
         print(B)
 
-        for pos1, pos2 in gen_secret(g):
+        for sg in gen_secret(g):
             if k % 10000 == 0:
                 print(k)
             k += 1
 
-            sg = [0] * g
-            for i in pos1:
-                sg[i] = 1
-            for i in pos2:
-                sg[i] = -1
-
-            sg_ = tuple(sg)
-            if sg_ in S:
-                continue
-            S.add(sg_)
-
-            if sg != [0, -1, 0, 0, -1, 1]:
-                continue
+            print(sg)
 
             sg = IntegerMatrix.from_matrix([sg])
 
@@ -287,12 +322,12 @@ def bdd_query_plain_hybrid(Ag, b, g, n, q,
             # print('target:', target)
 
             # BABAI MAY NOT BE SUFFICIENT!
-            v = M.babai(target)
-            print('v babai:', v)
-            print(sg, sum([abs(v[i]) for i in range(len(v))]))
+            # v = M.babai(target)
+            # print('v babai:', v)
+            # print(sg, sum([abs(v[i]) for i in range(len(v))]))
 
             # CVP suffices (but slow)
-            # v = CVP.closest_vector(B, target)
+            v = CVP.closest_vector(B, target)
             # print('v CVP:', v)
 
             error = [target[i] - v[i] for i in range(n + ell)]
@@ -303,32 +338,23 @@ def bdd_query_plain_hybrid(Ag, b, g, n, q,
                 return sg
 
         beta += 1
+        break
 
         # makes no difference
         # todo: fix s.t. actually aplies reduction
-        g6k = reduction(beta, tours, fpylll_crossover, g6k, tracer,
-                                                        jump=jump,
-                                                        verbose=verbose,
-                                                        extra_dim4free=extra_dim4free,
-                                                        dim4free_fun=dim4free_fun,
-                                                        goal_r0=target_norm,
-                                                        pump_params=pump_params)
+        B = reduction(B, beta, params)
 
     raise ValueError("No solution found.")
 
 
-def bdd_query_mitm(Ag, b, g, n, q, d,
-                         beta, tours, fpylll_crossover, g6k, tracer, jump,
-                         verbose, extra_dim4free, dim4free_fun, goal_r0, pump_params):
+def bdd_query_mitm(B, Ag, b, g, n, q, d, beta, params):
     '''
     Batch-CVP (BDD) with preprocessing, or (batch-CVPP).
     Using Babai's Nearest Plane
     '''
-    SH = SimHashes(15, seed=1337)
-
     ell = n - g
+    SH = SimHashes(n + ell, seed=1337)
 
-    S1 = set()
     V1 = []
     V2 = set()
 
@@ -343,32 +369,15 @@ def bdd_query_mitm(Ag, b, g, n, q, d,
     secrets1 = gen_secret(g // 2)
     secrets2 = gen_secret(g // 2)
     # print(all_pos_lst)
-    for pos1, pos2 in secrets1:
+    for s1 in secrets1:
         # print(k)
         if k % 1000 == 0:
             print(k)
         k += 1
 
-        s1 = [0] * g
-        for i in pos1:
-            s1[i] = 1
-        for i in pos2:
-            s1[i] = -1
+        s1_ = IntegerMatrix.from_matrix([s1 + [0] * (g // 2)])
 
-        # if s == [0, -1, 0, 0, -1, 1]:
-        #     print('secret found')
-
-        s1_ = tuple(s1_)
-        if s1_ in S1:
-            continue
-        S1.add(s1_)
-
-        s1 = IntegerMatrix.from_matrix([s1 + [0] * (g // 2)])
-
-
-        s1_prev = s1
-
-        target = s1 * Ag
+        target = s1_ * Ag
         target.mod(q)
         target = [0] * ell + list(target[0])
 
@@ -376,17 +385,13 @@ def bdd_query_mitm(Ag, b, g, n, q, d,
         v1 = CVP.closest_vector(B, target)
 
         # print(f'v1: {v1}')
-
         # print(target, v1)
 
         V1.append((list(v1), s1))
 
-    # print(len(S1)) # 3^(g//2)
-    # print(len(V2)) # 3^(g//2)
 
     # Closest Pairs
 
-    # V1 = np.array([np.array(SH.compress(v) + v) for v in V1])
     V1 = np.array([np.array(SH.compress(v) + v + s) for v, s in V1])
 
     # sorting by multiple columns tests:
@@ -398,32 +403,27 @@ def bdd_query_mitm(Ag, b, g, n, q, d,
         v1, v1_hash, s1 = v[XPC_WORD_LEN:-(g // 2)], v[:XPC_WORD_LEN], v[-(g // 2):]
         print(v1, v1_hash, s1)
 
-    # return
-
     V1_ = IntegerMatrix.from_matrix([v[:XPC_WORD_LEN].tolist() for v in V1[1:]])
     M_ = GSO.Mat(V1_)
     M_.update_gso()
 
     k = 0
-    for pos1, pos2 in secrets2:
+    for s2 in secrets2:
         # print(k)
         if k % 1000 == 0:
             print(k)
         k += 1
 
-        s2 = [0] * g
-        for i in pos2:
-            s2[i] = 1
-        for i in pos2:
-            s2[i] = -1
-
-        if list(s2) == [0, -1, 1]:
+        if s2 == [0, -1, 1]:
             print('found s2')
         else:
             continue
 
+        #
         # BDD:
-        s2_ = IntegerMatrix.from_matrix([list(s2) + [0] * (g // 2)])
+        #
+
+        s2_ = IntegerMatrix.from_matrix([[0] * (g // 2) + s2])
 
         sA = s2_ * Ag
         target = [0] * (ell + n)
@@ -437,7 +437,7 @@ def bdd_query_mitm(Ag, b, g, n, q, d,
 
         v2_hash = SH.compress(v2)
 
-        close_vec = search(V1, v2_hash, d=10000)
+        # close_vec = search(V1, v2_hash, d)
 
         # close_vec_ = CVP.closest_vector(V1_, v2_hash)
         # print(close_vec, close_vec_)
@@ -445,25 +445,31 @@ def bdd_query_mitm(Ag, b, g, n, q, d,
         # close_vec_ = M_.babai(v2_hash)
         # print('babai:', close_vec_)
 
-        # for v in V1:
-        #     v1, v1_hash, s1 = v[XPC_WORD_LEN:-(g // 2)], v[:XPC_WORD_LEN], v[-(g // 2):]
-        #     if s1.tolist() == [0, -1, 0]:
-        #         print('found s1')
-        #         break
-        # close_vec = v1
+        for v in V1:
+            v1, v1_hash, s1 = v[XPC_WORD_LEN:-(g // 2)], v[:XPC_WORD_LEN], v[-(g // 2):]
+            if s1.tolist() == [0, -1, 0]:
+                print('found s1')
+                break
+        close_vec = v
 
         if close_vec is not None:
             # print(i)
             v1, v1_hash, s1 = close_vec[XPC_WORD_LEN:-(g // 2)], close_vec[:XPC_WORD_LEN], close_vec[-(g // 2):]
+            print(close_vec)
             print('v1:', len(v1), v1, v1_hash, s1)
             print('v2:', len(v2), v2, v2_hash, s2)
             # print((v2, v2_hash), (close_vec[XPC_WORD_LEN:], close_vec[:XPC_WORD_LEN]))
             sg = list(s1) + list(s2)
             print(sg)
 
-            v = v1 + v2
+            v = [0] * (n + ell)
+            for i in range(n + ell):
+                v[i] = v1[i] + v2[i]
 
-            error = [target[i] - v2[i] for i in range(n + ell)]
+            # error = [target[i] - v[i] for i in range(n + ell)]
+
+            # check = b - e - sg * Ag
+            error = [v[i] for i in range(n + ell)]
             print('error:', error) # should be +/-1,0
             if check_success(error):
                 print('success')
@@ -521,26 +527,26 @@ def ntru_kernel(arg0, params=None, seed=None):
     params = copy.copy(params)
 
     # params for underlying BKZ
-    extra_dim4free = params.pop("bkz/extra_dim4free")
-    jump = params.pop("bkz/jump")
-    dim4free_fun = params.pop("bkz/dim4free_fun")
+    extra_dim4free = params.get("bkz/extra_dim4free")
+    jump = params.get("bkz/jump")
+    dim4free_fun = params.get("bkz/dim4free_fun")
     pump_params = pop_prefixed_params("pump", params)
-    fpylll_crossover = params.pop("bkz/fpylll_crossover")
-    blocksizes = params.pop("bkz/blocksizes")
-    tours = params.pop("bkz/tours")
+    fpylll_crossover = params.get("bkz/fpylll_crossover")
+    blocksizes = params.get("bkz/blocksizes")
+    tours = params.get("bkz/tours")
 
     print("params:", extra_dim4free, jump, dim4free_fun, pump_params,
         fpylll_crossover, blocksizes, tours)
 
     # flow of the lwe solver
-    svp_bkz_time_factor = params.pop("lwe/svp_bkz_time_factor")
-    goal_margin = params.pop("lwe/goal_margin")
+    svp_bkz_time_factor = params.get("lwe/svp_bkz_time_factor")
+    goal_margin = params.get("lwe/goal_margin")
 
     # generation of lwe instance and Kannan's embedding
 
     # misc
-    dont_trace = params.pop("dummy_tracer")
-    verbose = params.pop("verbose")
+    dont_trace = params.get("dummy_tracer")
+    verbose = params.get("verbose")
 
     #
     # Loading pregenerated LWE instance
@@ -554,6 +560,10 @@ def ntru_kernel(arg0, params=None, seed=None):
     w = 2*(n/3.)
     paramset_NTRU1 = {'n': n, 'q': q, 'w': w}
     print(paramset_NTRU1)
+
+    #
+    # Preprocessing
+    #
 
     beta, g, rt, nsamples, GSA = plain_hybrid_complexity(paramset_NTRU1, verbose = True)
     print('beta, g, rt, nsamples:', beta, g, rt, nsamples)
@@ -577,60 +587,17 @@ def ntru_kernel(arg0, params=None, seed=None):
     # print("blocksizes:", blocksizes)
 
     #
-    #   Preprocessing
-    #
-
-    print(B)
-    g6k = Siever(B, params)
-
-    if dont_trace:
-        tracer = dummy_tracer
-    else:
-        tracer = SieveTreeTracer(g6k, root_label=("ntru"), start_clocks=True)
-
-    d = g6k.full_n
-    g6k.lll(0, g6k.full_n)
-    #print(g6k.MatGSO)
-    slope = basis_quality(g6k.M)["/"]
-    print("Intial Slope = %.5f\n" % slope)
-
-    print('GSA input:')
-    print([g6k.M.get_r(i, i) for i in range(d)])
-
-    print('d:', d)
-    target_norm = ceil( (2./3)*d + 1) + 1
-    print("target_norm:", target_norm)
-
-
-    #
     # First part: Reduction
     #
 
-    #tours = 5
-    reduction(beta, tours, fpylll_crossover, g6k, tracer,
-                                                    jump=jump,
-                                                    verbose=verbose,
-                                                    extra_dim4free=extra_dim4free,
-                                                    dim4free_fun=dim4free_fun,
-                                                    goal_r0=target_norm,
-                                                    pump_params=pump_params)
+    # tours = 5
+    B = reduction(B, beta, params)
 
-
-    print()
-    print(g6k.M.B)
-
-    #T_BKZ = time.time() - T0_BKZ
-
-    print('GSA output:')
-    print([g6k.M.get_r(i, i) for i in range(d)])
-    #print(g6k.M.get_r(0, 0))
-    print(g6k.M.B[0], g6k.M.get_r(0,0))
-
-    if g == 0:
-        if(g6k.M.get_r(0, 0) <= target_norm):
-            return g6k.M.B[0]
-        else:
-            raise ValueError("No solution found.")
+    # if g == 0:
+    #     if(g6k.M.get_r(0, 0) <= target_norm):
+    #         return g6k.M.B[0]
+    #     else:
+    #         raise ValueError("No solution found.")
 
     #print(g6k.M.B, B)
 
@@ -645,30 +612,15 @@ def ntru_kernel(arg0, params=None, seed=None):
     print()
     print(Ag)
 
-    d = 100 # simash distance
+    d = 100 # simhash distance
 
     #
     # Second part: MiTM
     # BDD Queries
     #
 
-    sg = bdd_query_plain_hybrid(Ag, b, g, n, q,
-                             beta, tours, fpylll_crossover, g6k, tracer, jump=jump,
-                             verbose=verbose,
-                             extra_dim4free=extra_dim4free,
-                             dim4free_fun=dim4free_fun,
-                             goal_r0=target_norm,
-                             pump_params=pump_params)
-
-    # sg = bdd_query_mitm(Ag, b, g, n, q, d,
-    #                          beta, tours, fpylll_crossover, g6k, tracer, jump=jump,
-    #                          verbose=verbose,
-    #                          extra_dim4free=extra_dim4free,
-    #                          dim4free_fun=dim4free_fun,
-    #                          goal_r0=target_norm,
-    #                          pump_params=pump_params)
-
-    # check = b - e - sg * Ag
+    # sg = bdd_query_plain_hybrid(B, Ag, b, g, n, q, beta, params)
+    sg = bdd_query_mitm(B, Ag, b, g, n, q, d, beta, params)
 
     #print(s)
     print(sg)
