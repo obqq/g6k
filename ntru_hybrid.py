@@ -239,6 +239,9 @@ def reduction(B, beta, params):
 
     d = g6k.full_n
     g6k.lll(0, g6k.full_n)
+    print('After LLL')
+    print(g6k.M.B)
+
     #print(g6k.MatGSO)
     slope = basis_quality(g6k.M)["/"]
     print("Intial Slope = %.5f\n" % slope)
@@ -250,6 +253,8 @@ def reduction(B, beta, params):
     target_norm = ceil( (2./3)*d + 1) + 1
     print("target_norm:", target_norm)
 
+    print(f'# of Tours: {tours}')
+    tours = 5
     for tt in range(tours):
         if beta < fpylll_crossover:
             print("Starting a fpylll BKZ-%d tour. " % (beta), end=' ')
@@ -269,8 +274,7 @@ def reduction(B, beta, params):
                                      goal_r0=target_norm,
                                      pump_params=pump_params)
 
-    print('g6k.M.B')
-    print(g6k.M.B)
+    print(f'\ng6k.M.B{g6k.M.B}')
 
     #T_BKZ = time.time() - T0_BKZ
 
@@ -294,55 +298,45 @@ def bdd_query_plain_hybrid(B, Ag, b, g, n, q, beta, params):
     b.transpose()
 
     k = 0
-    while beta < 100:
-        print(f'beta: {beta}')
 
-        V1 = []
 
-        dim = B.nrows
-        target_norm = ceil( (2./3)*dim + 1) + 1
+    V1 = []
 
-        M = GSO.Mat(B)
-        M.update_gso()
-        print(B)
+    M = GSO.Mat(B)
+    M.update_gso()
+    print(B)
 
-        for sg in gen_secret(g):
-            if k % 10000 == 0:
-                print(k)
-            k += 1
 
-            print(sg)
+    for sg in gen_secret(g):
+        if k % 10000 == 0:
+            print(k)
+        k += 1
 
-            sg = IntegerMatrix.from_matrix([sg])
 
-            sA = sg * Ag
-            target = [0]*(ell+n)
-            for i in range(n):
-                target[i + ell] = (sA[0][i] - b[i][0]) % q
-            # print('target:', target)
+        sg = IntegerMatrix.from_matrix([sg])
 
-            # BABAI MAY NOT BE SUFFICIENT!
-            # v = M.babai(target)
-            # print('v babai:', v)
-            # print(sg, sum([abs(v[i]) for i in range(len(v))]))
+        sA = sg * Ag
+        target = [0]*(ell+n)
+        for i in range(n):
+            target[i + ell] = (sA[0][i] - b[i][0]) % q
+        # print('target:', target)
 
-            # CVP suffices (but slow)
-            v = CVP.closest_vector(B, target)
-            # print('v CVP:', v)
+        # BABAI MAY NOT BE SUFFICIENT!
+        # v = M.babai(target)
+        # print('v babai:', v)
+        # print(sg, sum([abs(v[i]) for i in range(len(v))]))
 
-            error = [target[i] - v[i] for i in range(n + ell)]
-            print('error:', error) # should be +/-1,0
-            print(error)
-            if check_success(error):
-                print('success')
-                return sg
+        # CVP suffices (but slow)
+        v = CVP.closest_vector(B, target)
+        # print('v CVP:', v)
 
-        beta += 1
-        break
+        error = [target[i] - v[i] for i in range(n + ell)]
 
-        # makes no difference
-        # todo: fix s.t. actually aplies reduction
-        B = reduction(B, beta, params)
+        if check_success(error):
+            print('error:', error)
+            print('success')
+            return sg
+
 
     raise ValueError("No solution found.")
 
@@ -590,8 +584,7 @@ def ntru_kernel(arg0, params=None, seed=None):
     # First part: Reduction
     #
 
-    # tours = 5
-    B = reduction(B, beta, params)
+    B = reduction(B, beta + 10, params)
 
     # if g == 0:
     #     if(g6k.M.get_r(0, 0) <= target_norm):
@@ -619,10 +612,9 @@ def ntru_kernel(arg0, params=None, seed=None):
     # BDD Queries
     #
 
-    # sg = bdd_query_plain_hybrid(B, Ag, b, g, n, q, beta, params)
-    sg = bdd_query_mitm(B, Ag, b, g, n, q, d, beta, params)
+    sg = bdd_query_plain_hybrid(B, Ag, b, g, n, q, beta, params)
+    # sg = bdd_query_mitm(B, Ag, b, g, n, q, d, beta, params)
 
-    #print(s)
     print(sg)
 
     if sg is None:
