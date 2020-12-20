@@ -290,7 +290,7 @@ def bdd_query_plain_hybrid(B, Ag, b, g, n, q, beta, params):
     '''
     '''
 
-    SH = SimHashes(n, seed=1337)
+    SH = SimHashes(ell, seed=1337)
 
     ell = n - g
 
@@ -323,7 +323,7 @@ def bdd_query_plain_hybrid(B, Ag, b, g, n, q, beta, params):
 
         # BABAI MAY NOT BE SUFFICIENT!
         # v = M.babai(target)
-        # print('v babai:', v)
+        print('v babai:', v)
         # print(sg, sum([abs(v[i]) for i in range(len(v))]))
 
         # CVP suffices (but slow)
@@ -347,7 +347,7 @@ def bdd_query_mitm(B, Ag, b, g, n, q, d, beta, params):
     Using Babai's Nearest Plane
     '''
     ell = n - g
-    SH = SimHashes(n + ell, seed=1337)
+    SH = SimHashes(ell, seed=1337)
 
     V1 = []
     V2 = set()
@@ -378,11 +378,13 @@ def bdd_query_mitm(B, Ag, b, g, n, q, d, beta, params):
         # v1 = M.babai(target)
         v1 = CVP.closest_vector(B, target)
 
+        v1 = v1[:ell]
+        v1 = [(i + q) % q for i in v1]
+
         # print(f'v1: {v1}')
         # print(target, v1)
 
-        V1.append((list(v1), s1))
-
+        V1.append((list(v1[:ell]), s1))
 
     # Closest Pairs
 
@@ -392,10 +394,9 @@ def bdd_query_mitm(B, Ag, b, g, n, q, d, beta, params):
     # https://stackoverflow.com/questions/2706605/sorting-a-2d-numpy-array-by-multiple-axes
     V1 = V1[np.lexsort([V1[:,i] for i in range(XPC_WORD_LEN, -1, -1)])]
 
-
-    for v in V1:
-        v1, v1_hash, s1 = v[XPC_WORD_LEN:-(g // 2)], v[:XPC_WORD_LEN], v[-(g // 2):]
-        print(v1, v1_hash, s1)
+    # for v in V1:
+    #     v1, v1_hash, s1 = v[XPC_WORD_LEN:-(g // 2)], v[:XPC_WORD_LEN], v[-(g // 2):]
+    #     print(v1, v1_hash, s1)
 
     V1_ = IntegerMatrix.from_matrix([v[:XPC_WORD_LEN].tolist() for v in V1[1:]])
     M_ = GSO.Mat(V1_)
@@ -407,11 +408,6 @@ def bdd_query_mitm(B, Ag, b, g, n, q, d, beta, params):
         if k % 1000 == 0:
             print(k)
         k += 1
-
-        if s2 == [0, -1, 1]:
-            print('found s2')
-        else:
-            continue
 
         #
         # BDD:
@@ -426,12 +422,15 @@ def bdd_query_mitm(B, Ag, b, g, n, q, d, beta, params):
 
         # v2 = M.babai(target)
         v2 = CVP.closest_vector(B, target)
+        v2 = v2[:ell]
+
+        v2 = [(i + q) % q for i in v2]
 
         # Search:
 
         v2_hash = SH.compress(v2)
 
-        # close_vec = search(V1, v2_hash, d)
+        close_vec = search(V1, v2_hash, d)
 
         # close_vec_ = CVP.closest_vector(V1_, v2_hash)
         # print(close_vec, close_vec_)
@@ -439,12 +438,14 @@ def bdd_query_mitm(B, Ag, b, g, n, q, d, beta, params):
         # close_vec_ = M_.babai(v2_hash)
         # print('babai:', close_vec_)
 
-        for v in V1:
-            v1, v1_hash, s1 = v[XPC_WORD_LEN:-(g // 2)], v[:XPC_WORD_LEN], v[-(g // 2):]
-            if s1.tolist() == [0, -1, 0]:
-                print('found s1')
-                break
-        close_vec = v
+        print(close_vec)
+
+        # for v in V1:
+        #     v1, v1_hash, s1 = v[XPC_WORD_LEN:-(g // 2)], v[:XPC_WORD_LEN], v[-(g // 2):]
+        #     if s1.tolist() == [0, -1, 0]:
+        #         print('found s1')
+        #         break
+        # close_vec = v
 
         if close_vec is not None:
             # print(i)
@@ -456,18 +457,17 @@ def bdd_query_mitm(B, Ag, b, g, n, q, d, beta, params):
             sg = list(s1) + list(s2)
             print(sg)
 
-            v = [0] * (n + ell)
-            for i in range(n + ell):
-                v[i] = v1[i] + v2[i]
+            sl = [0] * (ell)
+            for i in range(ell):
+                sl[i] = v1[i] - v2[i]
 
             # error = [target[i] - v[i] for i in range(n + ell)]
-
             # check = b - e - sg * Ag
-            error = [v[i] for i in range(n + ell)]
-            print('error:', error) # should be +/-1,0
-            if check_success(error):
+
+            print('sl:', sl) # should be +/-1,0
+            if check_success(sl):
                 print('success')
-                return sg
+                return sl + sg
 
 
 def ntru_kernel(arg0, params=None, seed=None):
@@ -584,7 +584,7 @@ def ntru_kernel(arg0, params=None, seed=None):
     # First part: Reduction
     #
 
-    B = reduction(B, beta + 10, params)
+    B = reduction(B, beta, params)
 
     # if g == 0:
     #     if(g6k.M.get_r(0, 0) <= target_norm):
@@ -612,8 +612,8 @@ def ntru_kernel(arg0, params=None, seed=None):
     # BDD Queries
     #
 
-    sg = bdd_query_plain_hybrid(B, Ag, b, g, n, q, beta, params)
-    # sg = bdd_query_mitm(B, Ag, b, g, n, q, d, beta, params)
+    # sg = bdd_query_plain_hybrid(B, Ag, b, g, n, q, beta, params)
+    sg = bdd_query_mitm(B, Ag, b, g, n, q, d, beta, params)
 
     print(sg)
 
