@@ -250,11 +250,11 @@ def reduction(B, beta, params):
     print([g6k.M.get_r(i, i) for i in range(d)])
 
     print('d:', d)
-    target_norm = ceil( (2./3)*d + 1) + 1
+    target_norm = ceil((2./3)*d + 1) + 1
     print("target_norm:", target_norm)
 
-    print(f'# of Tours: {tours}')
     tours = 5
+    print(f'# of Tours: {tours}')
     for tt in range(tours):
         if beta < fpylll_crossover:
             print("Starting a fpylll BKZ-%d tour. " % (beta), end=' ')
@@ -266,7 +266,7 @@ def reduction(B, beta, params):
             bkz(par)
 
         else:
-            print("Starting a pnjBKZ-%d tour. " % (beta))
+            print("Starting a pnjBKZ-%d tour. \n" % (beta))
             pump_n_jump_bkz_tour(g6k, tracer, beta, jump=jump,
                                      verbose=verbose,
                                      extra_dim4free=extra_dim4free,
@@ -274,13 +274,14 @@ def reduction(B, beta, params):
                                      goal_r0=target_norm,
                                      pump_params=pump_params)
 
-    print(f'\ng6k.M.B{g6k.M.B}')
+    # print(f'\ng6k.M.B{g6k.M.B}')
 
     #T_BKZ = time.time() - T0_BKZ
 
     print('GSA output:')
     print([g6k.M.get_r(i, i) for i in range(d)])
     #print(g6k.M.get_r(0, 0))
+    print(f'M.get_(0,0): {g6k.M.get_r(0, 0)}, target_norm: {target_norm})')
     print(g6k.M.B[0], g6k.M.get_r(0,0))
 
     return g6k.M.B
@@ -289,29 +290,23 @@ def reduction(B, beta, params):
 def bdd_query_plain_hybrid(B, Ag, b, g, n, q, beta, params):
     '''
     '''
-
-    SH = SimHashes(ell, seed=1337)
+    SH = SimHashes(n, seed=1337)
 
     ell = n - g
 
     b = copy.copy(b)
     b.transpose()
 
-    k = 0
-
-
     V1 = []
 
     M = GSO.Mat(B)
     M.update_gso()
-    print(B)
 
-
+    k = 0
     for sg in gen_secret(g):
         if k % 10000 == 0:
             print(k)
         k += 1
-
 
         sg = IntegerMatrix.from_matrix([sg])
 
@@ -319,29 +314,36 @@ def bdd_query_plain_hybrid(B, Ag, b, g, n, q, beta, params):
         target = [0]*(ell+n)
         for i in range(n):
             target[i + ell] = (sA[0][i] - b[i][0]) % q
-        # print('target:', target)
+
 
         # BABAI MAY NOT BE SUFFICIENT!
         # v = M.babai(target)
-        print('v babai:', v)
+        # print('v babai:', v)
         # print(sg, sum([abs(v[i]) for i in range(len(v))]))
 
         # CVP suffices (but slow)
         v = CVP.closest_vector(B, target)
         # print('v CVP:', v)
 
-        error = [target[i] - v[i] for i in range(n + ell)]
+        error = [(target[i] - v[i]) for i in range(n + ell)]
 
         if check_success(error):
+            print('target:', target)
+            print('v CVP:', v)
+            v_ = M.babai(target)
+            print('v babai:', v_)
+
             print('error:', error)
             print('success')
-            return sg
+
+            s = v[:ell] + tuple(sg[0])
+            return s
 
 
     raise ValueError("No solution found.")
 
 
-def bdd_query_mitm(B, Ag, b, g, n, q, d, beta, params):
+def bdd_query_mitm(B, Ag, b, g, n, q, d, beta, params, s_test=None):
     '''
     Batch-CVP (BDD) with preprocessing, or (batch-CVPP).
     Using Babai's Nearest Plane
@@ -375,8 +377,8 @@ def bdd_query_mitm(B, Ag, b, g, n, q, d, beta, params):
         target.mod(q)
         target = [0] * ell + list(target[0])
 
-        # v1 = M.babai(target)
-        v1 = CVP.closest_vector(B, target)
+        v1 = M.babai(target)
+        # v1 = CVP.closest_vector(B, target)
 
         v1 = v1[:ell]
         v1 = [(i + q) % q for i in v1]
@@ -398,10 +400,6 @@ def bdd_query_mitm(B, Ag, b, g, n, q, d, beta, params):
     #     v1, v1_hash, s1 = v[XPC_WORD_LEN:-(g // 2)], v[:XPC_WORD_LEN], v[-(g // 2):]
     #     print(v1, v1_hash, s1)
 
-    V1_ = IntegerMatrix.from_matrix([v[:XPC_WORD_LEN].tolist() for v in V1[1:]])
-    M_ = GSO.Mat(V1_)
-    M_.update_gso()
-
     k = 0
     for s2 in secrets2:
         # print(k)
@@ -413,6 +411,12 @@ def bdd_query_mitm(B, Ag, b, g, n, q, d, beta, params):
         # BDD:
         #
 
+        if s_test:
+            if s2 == s_test[-(g // 2):]:
+                print('found s2')
+            else:
+                continue
+
         s2_ = IntegerMatrix.from_matrix([[0] * (g // 2) + s2])
 
         sA = s2_ * Ag
@@ -420,8 +424,8 @@ def bdd_query_mitm(B, Ag, b, g, n, q, d, beta, params):
         for i in range(n):
             target[i + ell] = (sA[0][i] - b[i][0]) % q
 
-        # v2 = M.babai(target)
-        v2 = CVP.closest_vector(B, target)
+        v2 = M.babai(target)
+        # v2 = CVP.closest_vector(B, target)
         v2 = v2[:ell]
 
         v2 = [(i + q) % q for i in v2]
@@ -432,20 +436,13 @@ def bdd_query_mitm(B, Ag, b, g, n, q, d, beta, params):
 
         close_vec = search(V1, v2_hash, d)
 
-        # close_vec_ = CVP.closest_vector(V1_, v2_hash)
-        # print(close_vec, close_vec_)
-
-        # close_vec_ = M_.babai(v2_hash)
-        # print('babai:', close_vec_)
-
-        print(close_vec)
-
-        # for v in V1:
-        #     v1, v1_hash, s1 = v[XPC_WORD_LEN:-(g // 2)], v[:XPC_WORD_LEN], v[-(g // 2):]
-        #     if s1.tolist() == [0, -1, 0]:
-        #         print('found s1')
-        #         break
-        # close_vec = v
+        if s_test:
+            for v in V1:
+                v1, v1_hash, s1 = v[XPC_WORD_LEN:-(g // 2)], v[:XPC_WORD_LEN], v[-(g // 2):]
+                if s1.tolist() == s_test[-g:-(g // 2)]:
+                    print('found s1')
+                    break
+        close_vec = v
 
         if close_vec is not None:
             # print(i)
@@ -455,7 +452,7 @@ def bdd_query_mitm(B, Ag, b, g, n, q, d, beta, params):
             print('v2:', len(v2), v2, v2_hash, s2)
             # print((v2, v2_hash), (close_vec[XPC_WORD_LEN:], close_vec[:XPC_WORD_LEN]))
             sg = list(s1) + list(s2)
-            print(sg)
+            print('sg:', sg)
 
             sl = [0] * (ell)
             for i in range(ell):
@@ -569,7 +566,7 @@ def ntru_kernel(arg0, params=None, seed=None):
         beta, nsamples,rt, GSA = find_beta(n, q, n)
     """
     #force g = 6 for testing the hybrid
-    g = 6
+    g = 8
     beta, nsamples,rt, GSA = find_beta(n, q, n)
     print('beta, g, rt, nsamples:', beta, g, rt, nsamples)
     print('GSA predicted:')
@@ -592,18 +589,17 @@ def ntru_kernel(arg0, params=None, seed=None):
     #     else:
     #         raise ValueError("No solution found.")
 
-    #print(g6k.M.B, B)
-
+    # print(g6k.M.B, B)
 
     n = A.ncols
     ell = n - g
-    print(n, g, ell)
+    print(n, ell, g)
 
-    print(A)
-    print()
-    print(Al)
-    print()
-    print(Ag)
+    # print(A)
+    # print()
+    # print(Al)
+    # print()
+    # print(Ag)
 
     d = 100 # simhash distance
 
@@ -612,12 +608,12 @@ def ntru_kernel(arg0, params=None, seed=None):
     # BDD Queries
     #
 
-    # sg = bdd_query_plain_hybrid(B, Ag, b, g, n, q, beta, params)
-    sg = bdd_query_mitm(B, Ag, b, g, n, q, d, beta, params)
+    # s_ = bdd_query_plain_hybrid(B, Ag, b, g, n, q, beta, params)
+    s_ = bdd_query_mitm(B, Ag, b, g, n, q, d, beta, params, list(s[0]))
 
-    print(sg)
+    print(s_)
 
-    if sg is None:
+    if s_ is None:
         raise ValueError("No solution found.")
 
 

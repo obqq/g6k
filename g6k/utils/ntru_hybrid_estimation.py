@@ -120,14 +120,9 @@ def ntru_plain_hybrid_basis(A, g, q, nsamples):
 	"""
 	n = A.ncols
 	ell = n - g
-	print(n, ell, nsamples)
+
 	B = IntegerMatrix(nsamples + ell, nsamples + ell)
 
-	# for i in range(nsamples):
-	# 	B[i, i] = 1
-	# 	B[i + ell, i + ell] = q
-	# 	for j in range(ell):
-	# 		B[i, n + j] = A[i, j]
 	for i in range(ell):
 		B[i, i] = 1
 		for j in range(nsamples):
@@ -135,11 +130,8 @@ def ntru_plain_hybrid_basis(A, g, q, nsamples):
 	for i in range(nsamples):
 		B[i + ell, i + ell] = q
 
-	print('B:')
-	print(B)
-
-	#Al = B.submatrix(0, nsamples, nsamples, nsamples + ell)
-	#Ag = A.submatrix(0, ell, nsamples, nsamples)
+	# print('B:')
+	# print(B)
 
 	Al = B.submatrix(0, ell, ell, ell + nsamples)
 	Ag = A.submatrix(ell, 0, nsamples, nsamples)
