@@ -45,6 +45,29 @@ from simhash import SimHashes, search, XPC_WORD_LEN
 from fpylll import CVP
 
 
+
+from time import time
+from functools import wraps
+
+def timeit(f):
+    '''
+    Timeit decorator
+    Usage:
+    @timetit
+    def test():
+        pass
+    '''
+    @wraps(f)
+    def wrap(*args, **kw):
+        ts = time()
+        result = f(*args, **kw)
+        te = time()
+        # print(f.__name__, te - ts)
+        print('func: took: %2.4f sec' % (te - ts))
+        return result
+    return wrap
+
+
 NTRU_BASEDIR = 'ntru_challenge'
 LWE_BASEDIR = 'lwe_challenge'
 
