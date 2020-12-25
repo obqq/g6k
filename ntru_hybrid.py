@@ -21,7 +21,9 @@ import numpy as np
 
 import numpy as np
 
-from fpylll import GSO, IntegerMatrix, BKZ as fplll_bkz
+
+
+from fpylll import LLL, GSO, IntegerMatrix, BKZ as fplll_bkz
 from fpylll.algorithms.bkz2 import BKZReduction
 from fpylll.tools.quality import basis_quality
 from fpylll.util import gaussian_heuristic
@@ -239,8 +241,6 @@ def reduction(B, beta, params):
 
     d = g6k.full_n
     g6k.lll(0, g6k.full_n)
-    print('After LLL')
-    print(g6k.M.B)
 
     #print(g6k.MatGSO)
     slope = basis_quality(g6k.M)["/"]
@@ -253,7 +253,7 @@ def reduction(B, beta, params):
     target_norm = ceil((2./3)*d + 1) + 1
     print("target_norm:", target_norm)
 
-    tours = 5
+    tours = 10
     print(f'# of Tours: {tours}')
     for tt in range(tours):
         if beta < fpylll_crossover:
@@ -273,6 +273,7 @@ def reduction(B, beta, params):
                                      dim4free_fun=dim4free_fun,
                                      goal_r0=target_norm,
                                      pump_params=pump_params)
+        print(g6k.M.get_r(0,0))
 
     # print(f'\ng6k.M.B{g6k.M.B}')
 
@@ -287,63 +288,93 @@ def reduction(B, beta, params):
     return g6k.M.B
 
 
-def bdd_query_plain_hybrid(B, Ag, b, g, n, q, beta, params):
+def kannans_embedding(B, n, ell):
     '''
+    Kannan's embedding matrix
     '''
-    SH = SimHashes(n, seed=1337)
+    B1 = IntegerMatrix(n + ell + 1, n + ell + 1)
+    for i in range(n + ell):
+        for j in range(n + ell):
+            B1[i, j] = B[i, j]
+    B1[-1, -1] = -1
 
+    return B1
+
+
+def custom_babai(B1, target, n, ell):
+    '''
+    Custom Babai using LLL
+    '''
+
+    B1 = copy.copy(B1)
+
+    for i in range(n + ell + 1):
+        c = target[i]
+        B1[n + ell, i] = c # put the target vector as the last row of B1
+
+    M1 = GSO.Mat(B1) #FIXME: copying is evil
+    _ = M1.update_gso()
+    LLL.VERBOSE = False
+    L = LLL.Reduction(M1, delta=0.99, eta=0.501, flags=LLL.VERBOSE)
+    L() # run LLL
+
+    return M1.B[0]
+
+
+def bdd_query_plain_hybrid(B, Ag, b, g, n, q):
+    '''
+    '''
     ell = n - g
 
     b = copy.copy(b)
     b.transpose()
 
-    V1 = []
-
-    M = GSO.Mat(B)
-    M.update_gso()
+    B1 = kannans_embedding(B, n, ell)
 
     k = 0
     for sg in gen_secret(g):
+        """
         if k % 10000 == 0:
             print(k)
         k += 1
-
+        """
         sg = IntegerMatrix.from_matrix([sg])
 
         sA = sg * Ag
-        target = [0]*(ell+n)
+        target = [0]*(ell + n) + [-1]
         for i in range(n):
-            target[i + ell] = (sA[0][i] - b[i][0]) % q
+            target[i + ell] = (-sA[0][i] + b[i][0]) % q
 
+        v = custom_babai(B1, target, n, ell)
+        # now this is the error vector
+
+        # print(f'B1 after babai \n', B1)
+        #print(v)
 
         # BABAI MAY NOT BE SUFFICIENT!
-        # v = M.babai(target)
-        # print('v babai:', v)
+        #vb = M.babai(target)
+        #print('v babai:', vb)
         # print(sg, sum([abs(v[i]) for i in range(len(v))]))
 
         # CVP suffices (but slow)
-        v = CVP.closest_vector(B, target)
-        # print('v CVP:', v)
+        #v = CVP.closest_vector(B, target)
+        #print('v CVP:', v)
 
-        error = [(target[i] - v[i]) for i in range(n + ell)]
+        #print('sg:', sg, 'error:', error[ell:n], 'v:', v[ell:n])
 
-        if check_success(error):
+        if check_success(v):
             print('target:', target)
             print('v CVP:', v)
-            v_ = M.babai(target)
-            print('v babai:', v_)
-
-            print('error:', error)
             print('success')
 
-            s = v[:ell] + tuple(sg[0])
+            s = tuple(v)[:ell] + tuple(sg[0])
             return s
 
 
     raise ValueError("No solution found.")
 
 
-def bdd_query_mitm(B, Ag, b, g, n, q, d, beta, params, s_test=None):
+def bdd_query_mitm(B, Ag, b, g, n, q, d, s_test=None):
     '''
     Batch-CVP (BDD) with preprocessing, or (batch-CVPP).
     Using Babai's Nearest Plane
@@ -356,6 +387,8 @@ def bdd_query_mitm(B, Ag, b, g, n, q, d, beta, params, s_test=None):
 
     b = copy.copy(b)
     b.transpose()
+
+    B1 = kannans_embedding(B, n, ell)
 
     M = GSO.Mat(B)
     M.update_gso()
@@ -377,16 +410,18 @@ def bdd_query_mitm(B, Ag, b, g, n, q, d, beta, params, s_test=None):
         target.mod(q)
         target = [0] * ell + list(target[0])
 
-        v1 = M.babai(target)
+        # v1 = M.babai(target)
         # v1 = CVP.closest_vector(B, target)
 
-        v1 = v1[:ell]
-        v1 = [(i + q) % q for i in v1]
+
+        target += [-1]
+        v1 = custom_babai(B1, target, n, ell)
+        v1 = [(v1[i] + q) % q for i in range(ell)]
 
         # print(f'v1: {v1}')
         # print(target, v1)
 
-        V1.append((list(v1[:ell]), s1))
+        V1.append((list(v1), s1))
 
     # Closest Pairs
 
@@ -421,14 +456,18 @@ def bdd_query_mitm(B, Ag, b, g, n, q, d, beta, params, s_test=None):
 
         sA = s2_ * Ag
         target = [0] * (ell + n)
+        target += [-1]
         for i in range(n):
             target[i + ell] = (sA[0][i] - b[i][0]) % q
 
-        v2 = M.babai(target)
-        # v2 = CVP.closest_vector(B, target)
-        v2 = v2[:ell]
+        # v2 = M.babai(target)
+        # # v2 = CVP.closest_vector(B, target)
+        #
+        # v2 = [(i + q) % q for i in v2]
 
-        v2 = [(i + q) % q for i in v2]
+
+        v2 = custom_babai(B1, target, n, ell)
+        v2 = [(v2[i] + q) % q for i in range(ell)]
 
         # Search:
 
@@ -550,14 +589,14 @@ def ntru_kernel(arg0, params=None, seed=None):
     # compute the attack parameters
     w = 2*(n/3.)
     paramset_NTRU1 = {'n': n, 'q': q, 'w': w}
-    print(paramset_NTRU1)
+    print('paramset_NTRU', paramset_NTRU1)
 
     #
     # Preprocessing
     #
 
     beta, g, rt, nsamples, GSA = plain_hybrid_complexity(paramset_NTRU1, verbose = True)
-    print('beta, g, rt, nsamples:', beta, g, rt, nsamples)
+    print('beta, g, rt, nsamples predicted:', beta, g, rt, nsamples)
 
     # if g is too small to help, recompute BKZ params
     """
@@ -566,7 +605,7 @@ def ntru_kernel(arg0, params=None, seed=None):
         beta, nsamples,rt, GSA = find_beta(n, q, n)
     """
     #force g = 6 for testing the hybrid
-    g = 8
+    g = 6
     beta, nsamples,rt, GSA = find_beta(n, q, n)
     print('beta, g, rt, nsamples:', beta, g, rt, nsamples)
     print('GSA predicted:')
@@ -580,7 +619,8 @@ def ntru_kernel(arg0, params=None, seed=None):
     #
     # First part: Reduction
     #
-
+    beta = 40
+    print('running BKZ with beta=', beta)
     B = reduction(B, beta, params)
 
     # if g == 0:
@@ -591,25 +631,15 @@ def ntru_kernel(arg0, params=None, seed=None):
 
     # print(g6k.M.B, B)
 
-    n = A.ncols
-    ell = n - g
-    print(n, ell, g)
-
-    # print(A)
-    # print()
-    # print(Al)
-    # print()
-    # print(Ag)
-
     d = 100 # simhash distance
 
     #
     # Second part: MiTM
     # BDD Queries
     #
-
-    # s_ = bdd_query_plain_hybrid(B, Ag, b, g, n, q, beta, params)
-    s_ = bdd_query_mitm(B, Ag, b, g, n, q, d, beta, params, list(s[0]))
+    print('running bdd_query_plain_hybrid...')
+    # s_ = bdd_query_plain_hybrid(B, Ag, b, g, n, q)
+    s_ = bdd_query_mitm(B, Ag, b, g, n, q, d, list(s[0]))
 
     print(s_)
 
