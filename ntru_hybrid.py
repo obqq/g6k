@@ -397,13 +397,14 @@ def bdd_query_plain_hybrid(B, Ag, b, g, n, q):
     raise ValueError("No solution found.")
 
 
-def bdd_query_mitm(B, Ag, b, g, n, q, d, s_test=None):
+def bdd_query_mitm(B, Ag, b, g, n, q, s_test=None):
     '''
     Batch-CVP (BDD) with preprocessing, or (batch-CVPP).
     Using Babai's Nearest Plane
     '''
     ell = n - g
     SH = SimHashes(ell, seed=1337)
+    d = 100
 
     V1 = []
     V2 = set()
@@ -628,7 +629,10 @@ def ntru_kernel(arg0, params=None, seed=None):
         beta, nsamples,rt, GSA = find_beta(n, q, n)
     """
     #force g = 6 for testing the hybrid
-    g = 6
+
+    if n < 50 or g == 0:
+        g = 6
+
     beta, nsamples,rt, GSA = find_beta(n, q, n)
     print('beta, g, rt, nsamples:', beta, g, rt, nsamples)
     print('GSA predicted:')
@@ -642,7 +646,6 @@ def ntru_kernel(arg0, params=None, seed=None):
     #
     # First part: Reduction
     #
-    beta = 40
     print('running BKZ with beta=', beta)
     B = reduction(B, beta, params)
 
@@ -654,15 +657,13 @@ def ntru_kernel(arg0, params=None, seed=None):
 
     # print(g6k.M.B, B)
 
-    d = 100 # simhash distance
-
     #
     # Second part: MiTM
     # BDD Queries
     #
     print('running bdd_query_plain_hybrid...')
-    # s_ = bdd_query_plain_hybrid(B, Ag, b, g, n, q)
-    s_ = bdd_query_mitm(B, Ag, b, g, n, q, d, list(s[0]))
+    s_ = bdd_query_plain_hybrid(B, Ag, b, g, n, q)
+    # s_ = bdd_query_mitm(B, Ag, b, g, n, q, d, list(s[0]))
 
     print(s_)
 
